@@ -1,6 +1,6 @@
 # Z-Number
 
-ECMAScript-compatible Number implementation in Zig 0.15
+ECMAScript-compatible Number implementation in Zig 0.16
 
 [![Zig 0.15](https://img.shields.io/badge/Zig-0.15-orange.svg)](https://ziglang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -13,7 +13,7 @@ ECMAScript-compatible Number implementation in Zig 0.15
 
 - **100% ECMAScript Compatible**: Implements all Number constants, static methods, and instance methods
 - **IEEE 754 Compliant**: Proper handling of NaN, Infinity, -Infinity, and special values
-- **Modern Zig**: Written for Zig 0.15 with labeled blocks and best practices
+- **Modern Zig**: Written for Zig 0.16 with labeled blocks and best practices
 - **Comprehensive Testing**: 171+ tests covering all edge cases
 - **Type Safe**: Full type safety with proper error handling
 - **Production Ready**: Designed for use in JavaScript engines
@@ -384,7 +384,7 @@ MIT License - see LICENSE file for details
 
 ## Acknowledgments
 
-Built with Zig 0.15 for maximum performance and safety. Designed to be a core component of modern JavaScript engines.
+Built with Zig 0.16 for maximum performance and safety. Designed to be a core component of modern JavaScript engines.
 
 ---
 
