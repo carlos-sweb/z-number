@@ -26,7 +26,9 @@ const ZNumber = @import("znumber").ZNumber;
 const Constants = @import("znumber").Constants;
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    
+    var gpa:std.heap.DebugAllocator(.{}) = .init;
+    defer _ = gpa.deinit();     
     const allocator = gpa.allocator();
 
     // Crear números
@@ -49,6 +51,8 @@ pub fn main() !void {
 ```
 
 ## Instalación
+
+zig fetch --save git+https://github.com/carlos-sweb/z-number.git
 
 Agrega Z-Number a tu `build.zig`:
 
