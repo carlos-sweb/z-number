@@ -1,0 +1,17 @@
+.{
+    .name = .znumber,
+    .version = "0.1.0",
+    .minimum_zig_version = "0.14.0",
+
+    .description = "ECMAScript-compatible Number implementation in Zig — a production-ready library for JavaScript engines",
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "README.md",
+        "README.es.md",
+    },
+
+    .dependencies = .{},
+}

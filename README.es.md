@@ -2,7 +2,7 @@
 
 Implementación de Number compatible con ECMAScript en Zig 0.16
 
-[![Zig 0.15](https://img.shields.io/badge/Zig-0.15-orange.svg)](https://ziglang.org/)
+[![Zig 0.16](https://img.shields.io/badge/Zig-0.16-orange.svg)](https://ziglang.org/)
 [![Licencia: MIT](https://img.shields.io/badge/Licencia-MIT-blue.svg)](LICENSE)
 
 > Una biblioteca lista para producción que implementa el objeto Number de JavaScript en Zig, diseñada como componente central para motores JavaScript (como Bun/QuickJS).
