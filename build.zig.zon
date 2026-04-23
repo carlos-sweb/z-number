@@ -1,6 +1,7 @@
 .{
     .name = .znumber,
     .version = "0.1.0",
+    .fingerprint = 0xf226eeecf6761764,
     .minimum_zig_version = "0.14.0",
 
     .description = "ECMAScript-compatible Number implementation in Zig — a production-ready library for JavaScript engines",
