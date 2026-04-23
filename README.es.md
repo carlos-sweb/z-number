@@ -52,7 +52,9 @@ pub fn main() !void {
 
 ## Instalación
 
+```sh
 zig fetch --save git+https://github.com/carlos-sweb/z-number.git
+```
 
 Agrega Z-Number a tu `build.zig`:
 
