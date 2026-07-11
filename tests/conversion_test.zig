@@ -58,43 +58,51 @@ test "toUint() with infinity" {
     try std.testing.expectError(znumber.ZNumberError.InvalidNumber, ConversionMethods.toUint(Constants.POSITIVE_INFINITY));
 }
 
-// ===== toI32 Tests =====
+// ===== toI32 Tests (ECMA-262 ToInt32 - never throws, wraps mod 2^32) =====
 
 test "toI32() with valid i32 values" {
-    try std.testing.expectEqual(@as(i32, 42), try ConversionMethods.toI32(42.0));
-    try std.testing.expectEqual(@as(i32, -42), try ConversionMethods.toI32(-42.0));
-    try std.testing.expectEqual(@as(i32, 0), try ConversionMethods.toI32(0.0));
+    try std.testing.expectEqual(@as(i32, 42), ConversionMethods.toI32(42.0));
+    try std.testing.expectEqual(@as(i32, -42), ConversionMethods.toI32(-42.0));
+    try std.testing.expectEqual(@as(i32, 0), ConversionMethods.toI32(0.0));
 }
 
-test "toI32() with floats" {
-    try std.testing.expectEqual(@as(i32, 3), try ConversionMethods.toI32(3.99));
-    try std.testing.expectEqual(@as(i32, -3), try ConversionMethods.toI32(-3.99));
+test "toI32() with floats (truncates toward zero)" {
+    try std.testing.expectEqual(@as(i32, 3), ConversionMethods.toI32(3.99));
+    try std.testing.expectEqual(@as(i32, -3), ConversionMethods.toI32(-3.99));
 }
 
-test "toI32() overflow" {
+test "toI32() wraps out-of-range values instead of failing" {
     const too_large = @as(f64, @floatFromInt(std.math.maxInt(i32))) + 1.0;
-    try std.testing.expectError(znumber.ZNumberError.Overflow, ConversionMethods.toI32(too_large));
-}
-
-test "toI32() underflow" {
+    try std.testing.expectEqual(@as(i32, std.math.minInt(i32)), ConversionMethods.toI32(too_large));
     const too_small = @as(f64, @floatFromInt(std.math.minInt(i32))) - 1.0;
-    try std.testing.expectError(znumber.ZNumberError.Underflow, ConversionMethods.toI32(too_small));
+    try std.testing.expectEqual(@as(i32, std.math.maxInt(i32)), ConversionMethods.toI32(too_small));
 }
 
-// ===== toU32 Tests =====
+test "toI32() maps NaN/Infinity to 0" {
+    try std.testing.expectEqual(@as(i32, 0), ConversionMethods.toI32(Constants.NaN));
+    try std.testing.expectEqual(@as(i32, 0), ConversionMethods.toI32(Constants.POSITIVE_INFINITY));
+    try std.testing.expectEqual(@as(i32, 0), ConversionMethods.toI32(Constants.NEGATIVE_INFINITY));
+}
+
+// ===== toU32 Tests (ECMA-262 ToUint32 - never throws, wraps mod 2^32) =====
 
 test "toU32() with valid u32 values" {
-    try std.testing.expectEqual(@as(u32, 42), try ConversionMethods.toU32(42.0));
-    try std.testing.expectEqual(@as(u32, 0), try ConversionMethods.toU32(0.0));
+    try std.testing.expectEqual(@as(u32, 42), ConversionMethods.toU32(42.0));
+    try std.testing.expectEqual(@as(u32, 0), ConversionMethods.toU32(0.0));
 }
 
-test "toU32() with negative number" {
-    try std.testing.expectError(znumber.ZNumberError.Underflow, ConversionMethods.toU32(-1.0));
+test "toU32() with negative number wraps to the top of the range" {
+    try std.testing.expectEqual(@as(u32, 4294967295), ConversionMethods.toU32(-1.0));
 }
 
-test "toU32() overflow" {
+test "toU32() wraps out-of-range values instead of failing" {
     const too_large = @as(f64, @floatFromInt(std.math.maxInt(u32))) + 1.0;
-    try std.testing.expectError(znumber.ZNumberError.Overflow, ConversionMethods.toU32(too_large));
+    try std.testing.expectEqual(@as(u32, 0), ConversionMethods.toU32(too_large));
+}
+
+test "toU32() maps NaN/Infinity to 0" {
+    try std.testing.expectEqual(@as(u32, 0), ConversionMethods.toU32(Constants.NaN));
+    try std.testing.expectEqual(@as(u32, 0), ConversionMethods.toU32(Constants.POSITIVE_INFINITY));
 }
 
 // ===== toBytes / fromBytes Tests =====
@@ -168,13 +176,13 @@ test "ZNumber.toUint() instance method" {
 test "ZNumber.toI32() instance method" {
     const allocator = std.testing.allocator;
     const num = ZNumber.init(allocator, 42.5);
-    try std.testing.expectEqual(@as(i32, 42), try num.toI32());
+    try std.testing.expectEqual(@as(i32, 42), num.toI32());
 }
 
 test "ZNumber.toU32() instance method" {
     const allocator = std.testing.allocator;
     const num = ZNumber.init(allocator, 42.5);
-    try std.testing.expectEqual(@as(u32, 42), try num.toU32());
+    try std.testing.expectEqual(@as(u32, 42), num.toU32());
 }
 
 test "ZNumber.toBytes() instance method" {

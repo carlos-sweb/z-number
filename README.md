@@ -11,12 +11,31 @@ ECMAScript-compatible Number implementation in Zig 0.16
 
 ## Features
 
-- **100% ECMAScript Compatible**: Implements all Number constants, static methods, and instance methods
+- **Spec-exact formatting**: `toString`/`toFixed`/`toExponential`/`toPrecision` are implemented with arbitrary-precision (bignum) digit generation — not `printf`-style formatting — so rounding and the shortest round-tripping representation match a real JS engine exactly, including radixes 2-36 for `toString`.
+- **Spec-exact parsing**: `Number.parseInt`/`Number.parseFloat` consume the *longest valid prefix* and ignore trailing garbage, exactly like JS, instead of requiring the whole string to be valid.
+- **Spec-exact `ToInt32`/`ToUint32`**: `toI32`/`toU32` never fail — they wrap modulo 2^32 like JS's `| 0` / `>>> 0`, instead of throwing on overflow.
 - **IEEE 754 Compliant**: Proper handling of NaN, Infinity, -Infinity, and special values
 - **Modern Zig**: Written for Zig 0.16 with labeled blocks and best practices
-- **Comprehensive Testing**: 171+ tests covering all edge cases
-- **Type Safe**: Full type safety with proper error handling
+- **Comprehensive Testing**: 200+ tests, including thousands of vectors generated from and cross-checked against real Node.js/V8 output
 - **Production Ready**: Designed for use in JavaScript engines
+
+### Scope
+
+This library implements ECMA-262 §21.1 Number constants, static methods
+(`isFinite`/`isInteger`/`isNaN`/`isSafeInteger`/`parseInt`/`parseFloat`), and
+`Number.prototype` string/formatting methods, operating on Zig's native
+`f64`/`i64`/strings. It does **not** implement the `Number` constructor's
+`ToNumber` coercion from other JS value types (booleans, `null`, `undefined`,
+objects) — there is no dynamic "JS value" type here to coerce from, only
+numbers, integers and strings.
+
+For `toString(radix)` with `radix != 10`, ECMA-262 does not mandate an exact
+digit-generation algorithm (only decimal `toString` is normative there). This
+library always produces a *correct, exactly round-tripping* representation,
+computed as the true shortest digit sequence — for fractional values or
+integers beyond 2^53 this can occasionally differ by a digit or two from a
+specific engine's own (non-normative, and not always minimal) output, though
+both remain valid representations of the same value.
 
 ## Quick Start
 
@@ -132,14 +151,18 @@ ZNumber.parseFloat("  42  ")      // 42.0
 ZNumber.parseFloat("Infinity")    // Infinity
 ```
 
-#### Number.parseInt(str: []const u8, radix: ?u8) !i64
+#### Number.parseInt(allocator: Allocator, str: []const u8, radix: ?u8) f64
 
-Parses a string to an integer with optional radix:
+Parses a string to a number with optional radix. Like JS, it consumes the
+longest valid digit run and ignores the rest, and returns `NaN` — never an
+error — on invalid input:
 
 ```zig
-try ZNumber.parseInt("42", 10)      // 42
-try ZNumber.parseInt("0xFF", null)  // 255 (auto-detect hex)
-try ZNumber.parseInt("1010", 2)     // 10
+ZNumber.parseInt(allocator, "42", 10)      // 42
+ZNumber.parseInt(allocator, "0xFF", null)  // 255 (auto-detect hex)
+ZNumber.parseInt(allocator, "1010", 2)     // 10
+ZNumber.parseInt(allocator, "42px", 10)    // 42 (stops at the first invalid digit)
+ZNumber.parseInt(allocator, "abc", 10)     // NaN
 ```
 
 ### Instance Methods
@@ -203,10 +226,10 @@ a.power(2.0)   // 100.0
 ```zig
 const num = ZNumber.init(allocator, 42.7);
 
-try num.toInt()   // 42 (i64)
-try num.toUint()  // 42 (u64)
-try num.toI32()   // 42 (i32)
-try num.toU32()   // 42 (u32)
+try num.toInt()   // 42 (i64) — convenience helper, not part of ECMA-262; errors on NaN/Infinity/overflow
+try num.toUint()  // 42 (u64) — same as above
+num.toI32()       // 42 (i32) — ECMA-262 ToInt32; never fails, wraps mod 2^32 like `x | 0`
+num.toU32()       // 42 (u32) — ECMA-262 ToUint32; never fails, wraps mod 2^32 like `x >>> 0`
 ```
 
 ## IEEE 754 Compliance
@@ -236,17 +259,10 @@ zig build test --summary all
 ```
 
 Tests cover:
-- All constants (17 tests)
-- Static methods (24 tests)
-- Instance methods (22 tests)
-- Formatting (15 tests)
-- Parsing (20 tests)
-- Validation (14 tests)
-- Conversion (25 tests)
-- Edge cases (30 tests)
-- IEEE 754 compliance (24 tests)
+- Constants, static methods, instance methods, validation, conversion, edge cases, and IEEE 754 compliance (hand-written, ~190 tests)
+- Formatting, parsing, and `ToInt32`/`ToUint32` **vectors generated from and cross-checked against real Node.js/V8 output** (`tests/*_vectors_test.zig`) — thousands of individual assertions covering `toString` (radix 2-36), `toFixed`, `toExponential`, `toPrecision`, `parseInt`, `parseFloat`, and integer coercion across curated edge cases and randomized doubles
 
-**Total: 171+ tests, all passing**
+**Total: 200+ top-level tests (thousands of assertions), all passing**
 
 ## Implementation Details
 
@@ -255,25 +271,19 @@ Tests cover:
 Z-Number uses labeled blocks extensively (10+ places) for clear control flow:
 
 ```zig
-pub fn parseInt(str: []const u8, radix: ?u8) !i64 {
-    int_parser: {
-        // Validation and preprocessing
-        const radix_specified = radix != null;
-        const base = radix orelse 10;
-
-        // Auto-detect radix if not specified
-        if (!radix_specified and trimmed.len >= 2) {
-            if (trimmed[0] == '0' and trimmed[1] == 'x') {
-                trimmed = trimmed[2..];
-                base = 16;
-            }
-        }
-
-        break :int_parser;
+formatter: {
+    // Validate fraction_digits (0-100)
+    if (fraction_digits) |fd| {
+        if (fd > 100) return ZNumberError.RangeError;
     }
 
-    // Parse integer with radix
-    return std.fmt.parseInt(i64, trimmed, base);
+    // Handle special values
+    if (std.math.isNan(value)) return try allocator.dupe(u8, "NaN");
+    if (std.math.isInf(value)) {
+        return try allocator.dupe(u8, if (value > 0) "Infinity" else "-Infinity");
+    }
+
+    break :formatter;
 }
 ```
 
@@ -285,17 +295,17 @@ Comprehensive error types for all failure modes:
 pub const ZNumberError = error{
     OutOfMemory,
     InvalidNumber,
-    InvalidRadix,
     RangeError,
     Overflow,
     Underflow,
-    DivisionByZero,
-    InvalidRadixConversion,
-    ParseError,
-    InvalidFormat,
-    PrecisionLoss,
 };
 ```
+
+Note that the ECMA-262 operations themselves (`toI32`/`toU32`/`parseInt`/`parseFloat`)
+never return these errors — they wrap or return `NaN` like JS. `RangeError` is
+only used for out-of-spec-range arguments (e.g. `toFixed(101)`), and
+`Overflow`/`Underflow`/`InvalidNumber` are only used by the non-spec 64-bit
+convenience helpers (`toInt`/`toUint`).
 
 ## Project Structure
 
@@ -305,10 +315,11 @@ z-number/
 │   ├── znumber.zig         # Main ZNumber structure
 │   ├── constants.zig       # Number constants
 │   ├── errors.zig          # Error types
-│   ├── formatting.zig      # Formatting methods
-│   ├── parsing.zig         # Parsing methods
+│   ├── bignum.zig          # Arbitrary-precision digit generation (Dragon4-style)
+│   ├── formatting.zig      # Formatting methods (toString/toFixed/toExponential/toPrecision)
+│   ├── parsing.zig         # Parsing methods (parseInt/parseFloat)
 │   ├── validation.zig      # Validation methods
-│   └── conversion.zig      # Type conversions
+│   └── conversion.zig      # Type conversions (incl. ToInt32/ToUint32)
 ├── tests/
 │   ├── constants_test.zig
 │   ├── static_test.zig
@@ -317,7 +328,10 @@ z-number/
 │   ├── validation_test.zig
 │   ├── conversion_test.zig
 │   ├── edge_cases_test.zig
-│   └── ieee754_test.zig
+│   ├── ieee754_test.zig
+│   ├── formatting_vectors_test.zig      # generated from real V8 output
+│   ├── parsing_vectors_test.zig         # generated from real V8 output
+│   └── int_conversion_vectors_test.zig  # generated from real V8 output
 ├── build.zig
 ├── README.md
 └── README.es.md
@@ -357,9 +371,9 @@ defer allocator.free(exp);
 const float_val = ZNumber.parseFloat("3.14159");
 
 // Parse integers with different radices
-const decimal = try ZNumber.parseInt("42", 10);
-const hex = try ZNumber.parseInt("0xFF", null);  // auto-detect
-const binary = try ZNumber.parseInt("1010", 2);
+const decimal = ZNumber.parseInt(allocator, "42", 10);
+const hex = ZNumber.parseInt(allocator, "0xFF", null);  // auto-detect
+const binary = ZNumber.parseInt(allocator, "1010", 2);
 ```
 
 ### Special Values

@@ -52,46 +52,20 @@ pub const ConversionMethods = struct {
         return @intFromFloat(@trunc(value));
     }
 
-    /// Convert to i32
-    pub fn toI32(value: f64) !i32 {
-        i32_converter: {
-            if (!ValidationMethods.isFinite(value)) {
-                return ZNumberError.InvalidNumber;
-            }
-
-            if (value > @as(f64, @floatFromInt(std.math.maxInt(i32)))) {
-                return ZNumberError.Overflow;
-            }
-
-            if (value < @as(f64, @floatFromInt(std.math.minInt(i32)))) {
-                return ZNumberError.Underflow;
-            }
-
-            break :i32_converter;
-        }
-
-        return @intFromFloat(@trunc(value));
+    /// ToUint32(value), ECMA-262 7.1.7: NaN/Infinity/±0 map to 0, otherwise
+    /// truncate towards zero and wrap modulo 2^32. Never fails, matching JS's
+    /// `value >>> 0`.
+    pub fn toU32(value: f64) u32 {
+        if (!ValidationMethods.isFinite(value) or value == 0) return 0;
+        const wrapped = @mod(@trunc(value), 4294967296.0);
+        return @intFromFloat(wrapped);
     }
 
-    /// Convert to u32
-    pub fn toU32(value: f64) !u32 {
-        u32_converter: {
-            if (!ValidationMethods.isFinite(value)) {
-                return ZNumberError.InvalidNumber;
-            }
-
-            if (value < 0) {
-                return ZNumberError.Underflow;
-            }
-
-            if (value > @as(f64, @floatFromInt(std.math.maxInt(u32)))) {
-                return ZNumberError.Overflow;
-            }
-
-            break :u32_converter;
-        }
-
-        return @intFromFloat(@trunc(value));
+    /// ToInt32(value), ECMA-262 7.1.6: same as ToUint32 but the top half of
+    /// the range is reinterpreted as negative (two's complement). Never
+    /// fails, matching JS's `value | 0`.
+    pub fn toI32(value: f64) i32 {
+        return @bitCast(toU32(value));
     }
 
     /// Convert from bytes (IEEE 754)

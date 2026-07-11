@@ -4,15 +4,9 @@ const std = @import("std");
 pub const ZNumberError = error{
     OutOfMemory,
     InvalidNumber,
-    InvalidRadix,
     RangeError,
     Overflow,
     Underflow,
-    DivisionByZero,
-    InvalidRadixConversion,
-    ParseError,
-    InvalidFormat,
-    PrecisionLoss,
 };
 
 /// Context for providing detailed error information

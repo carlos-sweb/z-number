@@ -36,92 +36,98 @@ test "parseFloat() scientific notation" {
     try std.testing.expectEqual(@as(f64, 1.5e-3), ParsingMethods.parseFloat("1.5e-3"));
 }
 
+test "parseFloat() stops at the longest valid prefix" {
+    try std.testing.expectEqual(@as(f64, 3.14), ParsingMethods.parseFloat("3.14abc"));
+    try std.testing.expectEqual(@as(f64, 42.0), ParsingMethods.parseFloat("42px"));
+    try std.testing.expectEqual(@as(f64, 0.5), ParsingMethods.parseFloat(".5"));
+    try std.testing.expectEqual(@as(f64, 5.0), ParsingMethods.parseFloat("5."));
+    try std.testing.expectEqual(@as(f64, 50.0), ParsingMethods.parseFloat("+.5e2"));
+}
+
 // ===== parseInt Tests =====
 
 test "parseInt() base 10" {
-    try std.testing.expectEqual(@as(i64, 42), try ParsingMethods.parseInt("42", 10));
-    try std.testing.expectEqual(@as(i64, -123), try ParsingMethods.parseInt("-123", 10));
-    try std.testing.expectEqual(@as(i64, 0), try ParsingMethods.parseInt("0", 10));
-    try std.testing.expectEqual(@as(i64, 999), try ParsingMethods.parseInt("999", 10));
+    const a = std.testing.allocator;
+    try std.testing.expectEqual(@as(f64, 42), ParsingMethods.parseInt(a, "42", 10));
+    try std.testing.expectEqual(@as(f64, -123), ParsingMethods.parseInt(a, "-123", 10));
+    try std.testing.expectEqual(@as(f64, 0), ParsingMethods.parseInt(a, "0", 10));
+    try std.testing.expectEqual(@as(f64, 999), ParsingMethods.parseInt(a, "999", 10));
 }
 
 test "parseInt() base 16" {
-    try std.testing.expectEqual(@as(i64, 255), try ParsingMethods.parseInt("FF", 16));
-    try std.testing.expectEqual(@as(i64, 255), try ParsingMethods.parseInt("ff", 16));
-    try std.testing.expectEqual(@as(i64, 16), try ParsingMethods.parseInt("10", 16));
-    try std.testing.expectEqual(@as(i64, 171), try ParsingMethods.parseInt("AB", 16));
+    const a = std.testing.allocator;
+    try std.testing.expectEqual(@as(f64, 255), ParsingMethods.parseInt(a, "FF", 16));
+    try std.testing.expectEqual(@as(f64, 255), ParsingMethods.parseInt(a, "ff", 16));
+    try std.testing.expectEqual(@as(f64, 16), ParsingMethods.parseInt(a, "10", 16));
+    try std.testing.expectEqual(@as(f64, 171), ParsingMethods.parseInt(a, "AB", 16));
 }
 
 test "parseInt() base 2" {
-    try std.testing.expectEqual(@as(i64, 10), try ParsingMethods.parseInt("1010", 2));
-    try std.testing.expectEqual(@as(i64, 7), try ParsingMethods.parseInt("111", 2));
-    try std.testing.expectEqual(@as(i64, 0), try ParsingMethods.parseInt("0", 2));
-    try std.testing.expectEqual(@as(i64, 1), try ParsingMethods.parseInt("1", 2));
+    const a = std.testing.allocator;
+    try std.testing.expectEqual(@as(f64, 10), ParsingMethods.parseInt(a, "1010", 2));
+    try std.testing.expectEqual(@as(f64, 7), ParsingMethods.parseInt(a, "111", 2));
+    try std.testing.expectEqual(@as(f64, 0), ParsingMethods.parseInt(a, "0", 2));
+    try std.testing.expectEqual(@as(f64, 1), ParsingMethods.parseInt(a, "1", 2));
 }
 
 test "parseInt() base 8" {
-    try std.testing.expectEqual(@as(i64, 8), try ParsingMethods.parseInt("10", 8));
-    try std.testing.expectEqual(@as(i64, 63), try ParsingMethods.parseInt("77", 8));
-    try std.testing.expectEqual(@as(i64, 511), try ParsingMethods.parseInt("777", 8));
+    const a = std.testing.allocator;
+    try std.testing.expectEqual(@as(f64, 8), ParsingMethods.parseInt(a, "10", 8));
+    try std.testing.expectEqual(@as(f64, 63), ParsingMethods.parseInt(a, "77", 8));
+    try std.testing.expectEqual(@as(f64, 511), ParsingMethods.parseInt(a, "777", 8));
 }
 
 test "parseInt() auto-detect hex" {
-    try std.testing.expectEqual(@as(i64, 255), try ParsingMethods.parseInt("0xFF", null));
-    try std.testing.expectEqual(@as(i64, 255), try ParsingMethods.parseInt("0xff", null));
-    try std.testing.expectEqual(@as(i64, 255), try ParsingMethods.parseInt("0XFF", null));
+    const a = std.testing.allocator;
+    try std.testing.expectEqual(@as(f64, 255), ParsingMethods.parseInt(a, "0xFF", null));
+    try std.testing.expectEqual(@as(f64, 255), ParsingMethods.parseInt(a, "0xff", null));
+    try std.testing.expectEqual(@as(f64, 255), ParsingMethods.parseInt(a, "0XFF", null));
 }
 
-test "parseInt() auto-detect octal" {
-    try std.testing.expectEqual(@as(i64, 63), try ParsingMethods.parseInt("0o77", null));
-    try std.testing.expectEqual(@as(i64, 63), try ParsingMethods.parseInt("0O77", null));
-    try std.testing.expectEqual(@as(i64, 8), try ParsingMethods.parseInt("0o10", null));
-}
-
-test "parseInt() auto-detect binary" {
-    try std.testing.expectEqual(@as(i64, 10), try ParsingMethods.parseInt("0b1010", null));
-    try std.testing.expectEqual(@as(i64, 10), try ParsingMethods.parseInt("0B1010", null));
-    try std.testing.expectEqual(@as(i64, 7), try ParsingMethods.parseInt("0b111", null));
+test "parseInt() does NOT auto-detect octal or binary (unlike legacy non-spec behavior)" {
+    // Real Number.parseInt only special-cases "0x"/"0X"; "0o"/"0b" are parsed
+    // as decimal, stopping at the first invalid decimal digit ('o'/'b').
+    const a = std.testing.allocator;
+    try std.testing.expectEqual(@as(f64, 0), ParsingMethods.parseInt(a, "0o17", null));
+    try std.testing.expectEqual(@as(f64, 0), ParsingMethods.parseInt(a, "0b11", null));
 }
 
 test "parseInt() with sign" {
-    try std.testing.expectEqual(@as(i64, -42), try ParsingMethods.parseInt("-42", 10));
-    try std.testing.expectEqual(@as(i64, 42), try ParsingMethods.parseInt("+42", 10));
-    try std.testing.expectEqual(@as(i64, -255), try ParsingMethods.parseInt("-FF", 16));
+    const a = std.testing.allocator;
+    try std.testing.expectEqual(@as(f64, -42), ParsingMethods.parseInt(a, "-42", 10));
+    try std.testing.expectEqual(@as(f64, 42), ParsingMethods.parseInt(a, "+42", 10));
+    try std.testing.expectEqual(@as(f64, -255), ParsingMethods.parseInt(a, "-FF", 16));
 }
 
 test "parseInt() with whitespace" {
-    try std.testing.expectEqual(@as(i64, 42), try ParsingMethods.parseInt("  42  ", 10));
-    try std.testing.expectEqual(@as(i64, 255), try ParsingMethods.parseInt("\t0xFF\n", null));
+    const a = std.testing.allocator;
+    try std.testing.expectEqual(@as(f64, 42), ParsingMethods.parseInt(a, "  42  ", 10));
+    try std.testing.expectEqual(@as(f64, 255), ParsingMethods.parseInt(a, "\t0xFF\n", null));
 }
 
-test "parseInt() invalid radix" {
-    try std.testing.expectError(znumber.ZNumberError.InvalidRadix, ParsingMethods.parseInt("42", 1));
-    try std.testing.expectError(znumber.ZNumberError.InvalidRadix, ParsingMethods.parseInt("42", 37));
+test "parseInt() stops at the longest valid digit run" {
+    const a = std.testing.allocator;
+    try std.testing.expectEqual(@as(f64, 42), ParsingMethods.parseInt(a, "42abc", 10));
+    try std.testing.expectEqual(@as(f64, -42), ParsingMethods.parseInt(a, "   -42abc", null));
+    // '9' is not a valid base-2 digit, so only the leading "1" is consumed.
+    try std.testing.expectEqual(@as(f64, 1), ParsingMethods.parseInt(a, "19", 2));
 }
 
-test "parseInt() empty string" {
-    try std.testing.expectError(znumber.ZNumberError.InvalidNumber, ParsingMethods.parseInt("", 10));
-    try std.testing.expectError(znumber.ZNumberError.InvalidNumber, ParsingMethods.parseInt("   ", 10));
+test "parseInt() invalid radix returns NaN, never throws" {
+    const a = std.testing.allocator;
+    try std.testing.expect(std.math.isNan(ParsingMethods.parseInt(a, "42", 1)));
+    try std.testing.expect(std.math.isNan(ParsingMethods.parseInt(a, "42", 37)));
 }
 
-// ===== parseHex Tests =====
-
-test "parseHex() basic" {
-    try std.testing.expectEqual(@as(i64, 255), try ParsingMethods.parseHex("FF"));
-    try std.testing.expectEqual(@as(i64, 255), try ParsingMethods.parseHex("ff"));
-    try std.testing.expectEqual(@as(i64, 0), try ParsingMethods.parseHex("0"));
+test "parseInt() empty or all-invalid input returns NaN, never throws" {
+    const a = std.testing.allocator;
+    try std.testing.expect(std.math.isNan(ParsingMethods.parseInt(a, "", 10)));
+    try std.testing.expect(std.math.isNan(ParsingMethods.parseInt(a, "   ", 10)));
+    try std.testing.expect(std.math.isNan(ParsingMethods.parseInt(a, "abc", 10)));
+    try std.testing.expect(std.math.isNan(ParsingMethods.parseInt(a, "Infinity", null)));
 }
 
-// ===== parseOctal Tests =====
-
-test "parseOctal() basic" {
-    try std.testing.expectEqual(@as(i64, 8), try ParsingMethods.parseOctal("10"));
-    try std.testing.expectEqual(@as(i64, 63), try ParsingMethods.parseOctal("77"));
-}
-
-// ===== parseBinary Tests =====
-
-test "parseBinary() basic" {
-    try std.testing.expectEqual(@as(i64, 10), try ParsingMethods.parseBinary("1010"));
-    try std.testing.expectEqual(@as(i64, 7), try ParsingMethods.parseBinary("111"));
+test "parseInt() huge digit strings round to the nearest representable double" {
+    const a = std.testing.allocator;
+    try std.testing.expectEqual(@as(f64, 1e24), ParsingMethods.parseInt(a, "999999999999999999999999", 10));
 }

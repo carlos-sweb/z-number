@@ -36,14 +36,14 @@ test "overflow handling in conversion" {
     try std.testing.expectError(znumber.ZNumberError.Overflow, znumber.ConversionMethods.toInt(too_large));
 }
 
-test "overflow in i32 conversion" {
+test "i32 conversion wraps instead of overflowing (ToInt32 never throws)" {
     const too_large = @as(f64, @floatFromInt(std.math.maxInt(i32))) + 100.0;
-    try std.testing.expectError(znumber.ZNumberError.Overflow, znumber.ConversionMethods.toI32(too_large));
+    try std.testing.expectEqual(@as(i32, std.math.minInt(i32) + 99), znumber.ConversionMethods.toI32(too_large));
 }
 
-test "overflow in u32 conversion" {
+test "u32 conversion wraps instead of overflowing (ToUint32 never throws)" {
     const too_large = @as(f64, @floatFromInt(std.math.maxInt(u32))) + 100.0;
-    try std.testing.expectError(znumber.ZNumberError.Overflow, znumber.ConversionMethods.toU32(too_large));
+    try std.testing.expectEqual(@as(u32, 99), znumber.ConversionMethods.toU32(too_large));
 }
 
 // ===== Underflow Handling Tests =====
@@ -53,14 +53,14 @@ test "underflow handling in conversion" {
     try std.testing.expectError(znumber.ZNumberError.Underflow, znumber.ConversionMethods.toInt(too_small));
 }
 
-test "underflow in i32 conversion" {
+test "i32 conversion wraps below the minimum instead of underflowing" {
     const too_small = @as(f64, @floatFromInt(std.math.minInt(i32))) - 100.0;
-    try std.testing.expectError(znumber.ZNumberError.Underflow, znumber.ConversionMethods.toI32(too_small));
+    try std.testing.expectEqual(@as(i32, std.math.maxInt(i32) - 99), znumber.ConversionMethods.toI32(too_small));
 }
 
-test "underflow in unsigned conversion" {
+test "u32 conversion wraps below zero instead of underflowing" {
     try std.testing.expectError(znumber.ZNumberError.Underflow, znumber.ConversionMethods.toUint(-1.0));
-    try std.testing.expectError(znumber.ZNumberError.Underflow, znumber.ConversionMethods.toU32(-1.0));
+    try std.testing.expectEqual(@as(u32, 4294967295), znumber.ConversionMethods.toU32(-1.0));
 }
 
 // ===== NaN Propagation Tests =====

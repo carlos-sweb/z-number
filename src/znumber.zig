@@ -76,9 +76,9 @@ pub const ZNumber = struct {
         return ParsingMethods.parseFloat(str);
     }
 
-    /// Number.parseInt() - Parse string to integer
-    pub fn parseInt(str: []const u8, radix: ?u8) !i64 {
-        return ParsingMethods.parseInt(str, radix);
+    /// Number.parseInt() - Parse string to integer (returns NaN on failure, never throws, matching JS)
+    pub fn parseInt(allocator: Allocator, str: []const u8, radix: ?u8) f64 {
+        return ParsingMethods.parseInt(allocator, str, radix);
     }
 
     // ===== Instance Methods =====
@@ -243,13 +243,13 @@ pub const ZNumber = struct {
         return ConversionMethods.toUint(self.value);
     }
 
-    /// Convert to i32
-    pub fn toI32(self: Self) !i32 {
+    /// ToInt32(value) - never throws, wraps like JS `value | 0`
+    pub fn toI32(self: Self) i32 {
         return ConversionMethods.toI32(self.value);
     }
 
-    /// Convert to u32
-    pub fn toU32(self: Self) !u32 {
+    /// ToUint32(value) - never throws, wraps like JS `value >>> 0`
+    pub fn toU32(self: Self) u32 {
         return ConversionMethods.toU32(self.value);
     }
 

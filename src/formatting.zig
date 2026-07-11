@@ -1,239 +1,232 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 const Constants = @import("constants.zig").Constants;
 const ZNumberError = @import("errors.zig").ZNumberError;
+const bignum = @import("bignum.zig");
 
-/// Formatting methods for converting numbers to strings
-/// These methods match ECMAScript Number instance methods
+/// Formatting methods for converting numbers to strings.
+/// These implement the ECMA-262 Number.prototype string-producing methods
+/// (toString, toFixed, toExponential, toPrecision) exactly, using
+/// arbitrary-precision digit generation (see bignum.zig) for correct
+/// rounding and shortest round-trip representations.
 pub const FormattingMethods = struct {
-    /// Format to exponential notation
-    /// Returns a string representing the number in exponential notation
-    /// Labeled block example 1
-    pub fn toExponential(
-        value: f64,
-        allocator: std.mem.Allocator,
-        fraction_digits: ?usize,
-    ) ![]u8 {
-        formatter: {
-            // Validate fraction_digits (0-100)
-            if (fraction_digits) |fd| {
-                if (fd > 100) {
-                    return ZNumberError.RangeError;
-                }
-            }
-
-            // Handle special values
-            if (std.math.isNan(value)) {
-                return try allocator.dupe(u8, "NaN");
-            }
-
-            if (std.math.isInf(value)) {
-                if (value > 0) {
-                    return try allocator.dupe(u8, "Infinity");
-                } else {
-                    return try allocator.dupe(u8, "-Infinity");
-                }
-            }
-
-            break :formatter;
+    fn specialValueString(allocator: Allocator, value: f64) !?[]u8 {
+        if (std.math.isNan(value)) return try allocator.dupe(u8, "NaN");
+        if (std.math.isInf(value)) {
+            return try allocator.dupe(u8, if (value > 0) "Infinity" else "-Infinity");
         }
-
-        // Format number in exponential notation
-        // TODO: Use fraction_digits for precision formatting
-
-        // Calculate exponent
-        var abs_value = @abs(value);
-        var exponent: i32 = 0;
-
-        if (abs_value != 0.0) {
-            exponent = @as(i32, @intFromFloat(@floor(std.math.log10(abs_value))));
-            abs_value = abs_value / std.math.pow(f64, 10.0, @as(f64, @floatFromInt(exponent)));
-        }
-
-        // Format mantissa (manual because Zig doesn't support runtime precision in format strings)
-        const mantissa = if (value < 0) -abs_value else abs_value;
-        const exp_sign = if (exponent >= 0) "+" else "";
-
-        return try std.fmt.allocPrint(
-            allocator,
-            "{d}e{s}{d}",
-            .{ mantissa, exp_sign, exponent },
-        );
+        return null;
     }
 
-    /// Format to fixed-point notation
-    /// Returns a string with a specified number of decimal places
-    /// Labeled block example 2
+    fn appendZeros(allocator: Allocator, out: *std.ArrayList(u8), count: usize) !void {
+        var i: usize = 0;
+        while (i < count) : (i += 1) try out.append(allocator, '0');
+    }
+
+    /// Assembles `digits` (k significant digits, value == 0.<digits> * 10^n)
+    /// into plain positional notation, e.g. "1234.57", "0.0012", "1200".
+    /// Shared by toString's fixed-notation branch, toString(radix != 10),
+    /// and toPrecision's fixed-notation branch — all use this identical shape.
+    fn assembleFixedNotation(allocator: Allocator, out: *std.ArrayList(u8), digits: []const u8, n: i32) !void {
+        const k: i32 = @intCast(digits.len);
+        if (n <= 0) {
+            try out.appendSlice(allocator, "0.");
+            try appendZeros(allocator, out, @intCast(-n));
+            try out.appendSlice(allocator, digits);
+        } else if (n >= k) {
+            try out.appendSlice(allocator, digits);
+            try appendZeros(allocator, out, @intCast(n - k));
+        } else {
+            const split: usize = @intCast(n);
+            try out.appendSlice(allocator, digits[0..split]);
+            try out.append(allocator, '.');
+            try out.appendSlice(allocator, digits[split..]);
+        }
+    }
+
+    /// Assembles `digits` into exponential notation, e.g. "1.23e+2", "5e-324".
+    fn assembleExponential(allocator: Allocator, out: *std.ArrayList(u8), digits: []const u8, exponent: i32) !void {
+        try out.append(allocator, digits[0]);
+        if (digits.len > 1) {
+            try out.append(allocator, '.');
+            try out.appendSlice(allocator, digits[1..]);
+        }
+        try out.append(allocator, 'e');
+        try out.append(allocator, if (exponent >= 0) '+' else '-');
+        const exp_abs: u32 = @intCast(if (exponent >= 0) exponent else -exponent);
+        var buf: [16]u8 = undefined;
+        const s = std.fmt.bufPrint(&buf, "{d}", .{exp_abs}) catch unreachable;
+        try out.appendSlice(allocator, s);
+    }
+
+    /// Number::toString(x, radix) — ECMA-262 6.1.6.1.20 / 21.1.3.6.
+    pub fn toString(value: f64, allocator: Allocator, radix: ?u8) ![]u8 {
+        const base = radix orelse 10;
+        if (base < 2 or base > 36) return ZNumberError.RangeError;
+
+        if (try specialValueString(allocator, value)) |s| return s;
+        if (value == 0) return try allocator.dupe(u8, "0");
+
+        const neg = value < 0;
+        const abs_v = @abs(value);
+
+        const d = try bignum.shortestDigits(allocator, abs_v, base);
+        defer d.deinit(allocator);
+
+        var out = std.ArrayList(u8).empty;
+        errdefer out.deinit(allocator);
+        if (neg) try out.append(allocator, '-');
+
+        if (base == 10) {
+            const n = d.n;
+            if (n > -6 and n <= 21) {
+                try assembleFixedNotation(allocator, &out, d.digits, n);
+            } else {
+                try assembleExponential(allocator, &out, d.digits, n - 1);
+            }
+        } else {
+            try assembleFixedNotation(allocator, &out, d.digits, d.n);
+        }
+
+        return out.toOwnedSlice(allocator);
+    }
+
+    /// Number::toFixed(fractionDigits) — ECMA-262 21.1.3.3.
     pub fn toFixed(
         value: f64,
-        allocator: std.mem.Allocator,
+        allocator: Allocator,
         fraction_digits: ?usize,
     ) ![]u8 {
-        fixed_formatter: {
-            const digits = fraction_digits orelse 0;
+        const f = fraction_digits orelse 0;
+        if (f > 100) return ZNumberError.RangeError;
+        if (try specialValueString(allocator, value)) |s| return s;
 
-            // Validate range (0-100)
-            if (digits > 100) {
-                return ZNumberError.RangeError;
-            }
+        const neg = value < 0;
+        const x = @abs(value);
 
-            // Handle special values
-            if (std.math.isNan(value)) {
-                return try allocator.dupe(u8, "NaN");
-            }
-
-            if (std.math.isInf(value)) {
-                if (value > 0) {
-                    return try allocator.dupe(u8, "Infinity");
-                } else {
-                    return try allocator.dupe(u8, "-Infinity");
-                }
-            }
-
-            break :fixed_formatter;
+        if (x >= 1e21) {
+            // toString already handles sign for the (still-signed) original value.
+            return toString(value, allocator, null);
         }
 
-        // Format with fixed decimals
-        const digits = fraction_digits orelse 0;
-        // Manually format since Zig doesn't support runtime precision
-        if (digits == 0) {
-            return try std.fmt.allocPrint(allocator, "{d:.0}", .{value});
-        } else if (digits == 1) {
-            return try std.fmt.allocPrint(allocator, "{d:.1}", .{value});
-        } else if (digits == 2) {
-            return try std.fmt.allocPrint(allocator, "{d:.2}", .{value});
+        const m = if (x == 0) try allocator.dupe(u8, "0") else try bignum.toFixedDigits(allocator, x, f);
+        defer allocator.free(m);
+
+        var out = std.ArrayList(u8).empty;
+        errdefer out.deinit(allocator);
+        if (neg) try out.append(allocator, '-');
+
+        if (f == 0) {
+            try out.appendSlice(allocator, m);
         } else {
-            // For larger digit counts, just use default formatting
-            return try std.fmt.allocPrint(allocator, "{d}", .{value});
+            var padded = m;
+            var owned_pad: ?[]u8 = null;
+            defer if (owned_pad) |p| allocator.free(p);
+            if (m.len <= f) {
+                const pad = f + 1 - m.len;
+                const buf = try allocator.alloc(u8, pad + m.len);
+                @memset(buf[0..pad], '0');
+                @memcpy(buf[pad..], m);
+                owned_pad = buf;
+                padded = buf;
+            }
+            const split = padded.len - f;
+            try out.appendSlice(allocator, padded[0..split]);
+            try out.append(allocator, '.');
+            try out.appendSlice(allocator, padded[split..]);
         }
+
+        return out.toOwnedSlice(allocator);
     }
 
-    /// Format to precision notation
-    /// Returns a string with a specified precision
+    /// Number::toExponential(fractionDigits) — ECMA-262 21.1.3.2.
+    pub fn toExponential(
+        value: f64,
+        allocator: Allocator,
+        fraction_digits: ?usize,
+    ) ![]u8 {
+        if (try specialValueString(allocator, value)) |s| return s;
+        if (fraction_digits) |fd| {
+            if (fd > 100) return ZNumberError.RangeError;
+        }
+
+        const neg = value < 0;
+        const x = @abs(value);
+
+        var out = std.ArrayList(u8).empty;
+        errdefer out.deinit(allocator);
+        if (neg) try out.append(allocator, '-');
+
+        if (x == 0) {
+            const count = (fraction_digits orelse 0) + 1;
+            const digits = try allocator.alloc(u8, count);
+            defer allocator.free(digits);
+            @memset(digits, '0');
+            try assembleExponential(allocator, &out, digits, 0);
+            return out.toOwnedSlice(allocator);
+        }
+
+        if (fraction_digits) |fd| {
+            const d = try bignum.fixedDigits(allocator, x, fd + 1);
+            defer d.deinit(allocator);
+            try assembleExponential(allocator, &out, d.digits, d.n - 1);
+        } else {
+            const d = try bignum.shortestDigits(allocator, x, 10);
+            defer d.deinit(allocator);
+            try assembleExponential(allocator, &out, d.digits, d.n - 1);
+        }
+
+        return out.toOwnedSlice(allocator);
+    }
+
+    /// Number::toPrecision(precision) — ECMA-262 21.1.3.5.
     pub fn toPrecision(
         value: f64,
-        allocator: std.mem.Allocator,
+        allocator: Allocator,
         precision: ?usize,
     ) ![]u8 {
-        precision_formatter: {
-            // If precision is not specified, use toString
-            if (precision == null) {
-                return toString(value, allocator, null);
-            }
-
-            const prec = precision.?;
-
-            // Validate precision (1-100)
-            if (prec < 1 or prec > 100) {
-                return ZNumberError.RangeError;
-            }
-
-            // Handle special values
-            if (std.math.isNan(value)) {
-                return try allocator.dupe(u8, "NaN");
-            }
-
-            if (std.math.isInf(value)) {
-                if (value > 0) {
-                    return try allocator.dupe(u8, "Infinity");
-                } else {
-                    return try allocator.dupe(u8, "-Infinity");
-                }
-            }
-
-            break :precision_formatter;
+        if (precision == null) {
+            return toString(value, allocator, null);
         }
-
         const prec = precision.?;
+        if (try specialValueString(allocator, value)) |s| return s;
+        if (prec < 1 or prec > 100) return ZNumberError.RangeError;
 
-        // Determine if we should use exponential or fixed notation
-        const abs_value = @abs(value);
+        const neg = value < 0;
+        const x = @abs(value);
 
-        if (abs_value == 0.0) {
-            return toFixed(value, allocator, if (prec > 0) prec - 1 else 0);
+        var out = std.ArrayList(u8).empty;
+        errdefer out.deinit(allocator);
+        if (neg) try out.append(allocator, '-');
+
+        if (x == 0) {
+            const digits = try allocator.alloc(u8, prec);
+            defer allocator.free(digits);
+            @memset(digits, '0');
+            try assembleFixedNotation(allocator, &out, digits, 1);
+            return out.toOwnedSlice(allocator);
         }
 
-        const exponent = @floor(std.math.log10(abs_value));
+        const d = try bignum.fixedDigits(allocator, x, prec);
+        defer d.deinit(allocator);
+        const e = d.n - 1;
 
-        if (exponent < -6 or exponent >= @as(f64, @floatFromInt(prec))) {
-            // Use exponential notation
-            return toExponential(value, allocator, prec - 1);
+        if (e < -6 or e >= @as(i32, @intCast(prec))) {
+            try assembleExponential(allocator, &out, d.digits, e);
         } else {
-            // Use fixed notation
-            const decimals = prec - @as(usize, @intFromFloat(exponent)) - 1;
-            return toFixed(value, allocator, decimals);
+            try assembleFixedNotation(allocator, &out, d.digits, d.n);
         }
+
+        return out.toOwnedSlice(allocator);
     }
 
-    /// Convert to string with radix
-    /// Returns a string representation in the specified base
-    /// Labeled block example 3
-    pub fn toString(
-        value: f64,
-        allocator: std.mem.Allocator,
-        radix: ?u8,
-    ) ![]u8 {
-        string_converter: {
-            const base = radix orelse 10;
-
-            // Validate radix (2-36)
-            if (base < 2 or base > 36) {
-                return ZNumberError.RangeError;
-            }
-
-            // Handle special values
-            if (std.math.isNan(value)) {
-                return try allocator.dupe(u8, "NaN");
-            }
-
-            if (std.math.isInf(value)) {
-                if (value > 0) {
-                    return try allocator.dupe(u8, "Infinity");
-                } else {
-                    return try allocator.dupe(u8, "-Infinity");
-                }
-            }
-
-            // For non-base 10, must be integer
-            if (base != 10) {
-                const int_value = @as(i64, @intFromFloat(value));
-                if (@as(f64, @floatFromInt(int_value)) != value) {
-                    return ZNumberError.InvalidRadixConversion;
-                }
-            }
-
-            break :string_converter;
-        }
-
-        const base = radix orelse 10;
-
-        // Convert to string with radix
-        if (base == 10) {
-            return try std.fmt.allocPrint(allocator, "{d}", .{value});
-        } else {
-            const int_value = @as(i64, @intFromFloat(value));
-            // Format with common radices
-            if (base == 16) {
-                return try std.fmt.allocPrint(allocator, "{x}", .{int_value});
-            } else if (base == 2) {
-                return try std.fmt.allocPrint(allocator, "{b}", .{int_value});
-            } else if (base == 8) {
-                return try std.fmt.allocPrint(allocator, "{o}", .{int_value});
-            } else {
-                // For other bases (3-36), use custom formatting
-                // Simplified: only support common bases for now
-                // For full ECMAScript compatibility, would need full base-36 support
-                return try std.fmt.allocPrint(allocator, "{d}", .{int_value});
-            }
-        }
-    }
-
-    /// Convert to locale string (simplified version)
+    /// Simplified toLocaleString: locale-aware formatting is implementation-defined
+    /// even in real JS engines; this delegates to the base-10 toString algorithm.
     pub fn toLocaleString(
         value: f64,
-        allocator: std.mem.Allocator,
+        allocator: Allocator,
         locale: ?[]const u8,
     ) ![]u8 {
-        // Simplified implementation - just returns standard string
         _ = locale;
         return toString(value, allocator, null);
     }

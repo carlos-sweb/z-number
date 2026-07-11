@@ -21,6 +21,9 @@ pub fn build(b: *std.Build) void {
         "tests/conversion_test.zig",
         "tests/edge_cases_test.zig",
         "tests/ieee754_test.zig",
+        "tests/formatting_vectors_test.zig",
+        "tests/parsing_vectors_test.zig",
+        "tests/int_conversion_vectors_test.zig",
     };
 
     inline for (test_files) |test_file| {
