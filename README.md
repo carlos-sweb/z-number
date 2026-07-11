@@ -228,8 +228,18 @@ const num = ZNumber.init(allocator, 42.7);
 
 try num.toInt()   // 42 (i64) — convenience helper, not part of ECMA-262; errors on NaN/Infinity/overflow
 try num.toUint()  // 42 (u64) — same as above
+
 num.toI32()       // 42 (i32) — ECMA-262 ToInt32; never fails, wraps mod 2^32 like `x | 0`
 num.toU32()       // 42 (u32) — ECMA-262 ToUint32; never fails, wraps mod 2^32 like `x >>> 0`
+num.toI8()        // 42 (i8)  — ECMA-262 ToInt8; Int8Array element coercion
+num.toU8()        // 42 (u8)  — ECMA-262 ToUint8; Uint8Array element coercion
+num.toI16()       // 42 (i16) — ECMA-262 ToInt16; Int16Array element coercion
+num.toU16()       // 42 (u16) — ECMA-262 ToUint16; Uint16Array element coercion
+num.toUint8Clamp() // 42 (u8) — ECMA-262 ToUint8Clamp; Uint8ClampedArray element coercion
+                    //           (saturates to [0,255] instead of wrapping; ties round to even)
+
+num.toIntegerOrInfinity() // 42.0 (f64) — ECMA-262 ToIntegerOrInfinity
+num.toLength()             // 42.0 (f64) — ECMA-262 ToLength (clamped to [0, MAX_SAFE_INTEGER])
 ```
 
 ## IEEE 754 Compliance
@@ -317,7 +327,7 @@ z-number/
 │   ├── formatting.zig      # Formatting methods (toString/toFixed/toExponential/toPrecision)
 │   ├── parsing.zig         # Parsing methods (parseInt/parseFloat)
 │   ├── validation.zig      # Validation methods
-│   └── conversion.zig      # Type conversions (incl. ToInt32/ToUint32)
+│   └── conversion.zig      # Type conversions (ToInt32/ToUint32/ToInt8/ToUint8/ToInt16/ToUint16/ToUint8Clamp/ToIntegerOrInfinity/ToLength)
 ├── tests/
 │   ├── constants_test.zig
 │   ├── static_test.zig
@@ -327,9 +337,10 @@ z-number/
 │   ├── conversion_test.zig
 │   ├── edge_cases_test.zig
 │   ├── ieee754_test.zig
-│   ├── formatting_vectors_test.zig      # generated from real V8 output
-│   ├── parsing_vectors_test.zig         # generated from real V8 output
-│   └── int_conversion_vectors_test.zig  # generated from real V8 output
+│   ├── formatting_vectors_test.zig             # generated from real V8 output
+│   ├── parsing_vectors_test.zig                # generated from real V8 output
+│   ├── int_conversion_vectors_test.zig         # generated from real V8 output
+│   └── typed_array_conversion_vectors_test.zig # generated from real V8 TypedArray coercion
 ├── build.zig
 ├── README.md
 └── README.es.md

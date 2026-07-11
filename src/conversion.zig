@@ -52,20 +52,91 @@ pub const ConversionMethods = struct {
         return @intFromFloat(@trunc(value));
     }
 
-    /// ToUint32(value), ECMA-262 7.1.7: NaN/Infinity/±0 map to 0, otherwise
-    /// truncate towards zero and wrap modulo 2^32. Never fails, matching JS's
-    /// `value >>> 0`.
-    pub fn toU32(value: f64) u32 {
+    /// Generic ToUintN(value), covering ECMA-262 7.1.7 (ToUint32, bits=32)
+    /// and the analogous ToUint8/ToUint16 used by TypedArrays: NaN/Infinity/±0
+    /// map to 0, otherwise truncate towards zero and wrap modulo 2^bits.
+    /// Never fails.
+    pub fn toUintN(comptime bits: u16, value: f64) std.meta.Int(.unsigned, bits) {
         if (!ValidationMethods.isFinite(value) or value == 0) return 0;
-        const wrapped = @mod(@trunc(value), 4294967296.0);
+        const modulus: f64 = @floatFromInt(@as(u64, 1) << bits);
+        const wrapped = @mod(@trunc(value), modulus);
         return @intFromFloat(wrapped);
     }
 
-    /// ToInt32(value), ECMA-262 7.1.6: same as ToUint32 but the top half of
-    /// the range is reinterpreted as negative (two's complement). Never
-    /// fails, matching JS's `value | 0`.
+    /// Generic ToIntN(value), covering ECMA-262 7.1.6 (ToInt32, bits=32) and
+    /// the analogous ToInt8/ToInt16: same wrap-around as ToUintN, with the
+    /// top half of the range reinterpreted as negative (two's complement).
+    /// Never fails.
+    pub fn toIntN(comptime bits: u16, value: f64) std.meta.Int(.signed, bits) {
+        return @bitCast(toUintN(bits, value));
+    }
+
+    /// ToUint32(value), ECMA-262 7.1.7. Never fails, matching JS's `value >>> 0`.
+    pub fn toU32(value: f64) u32 {
+        return toUintN(32, value);
+    }
+
+    /// ToInt32(value), ECMA-262 7.1.6. Never fails, matching JS's `value | 0`.
     pub fn toI32(value: f64) i32 {
-        return @bitCast(toU32(value));
+        return toIntN(32, value);
+    }
+
+    /// ToInt8(value), used by Int8Array element coercion. Never fails.
+    pub fn toI8(value: f64) i8 {
+        return toIntN(8, value);
+    }
+
+    /// ToUint8(value), used by Uint8Array element coercion. Never fails.
+    pub fn toU8(value: f64) u8 {
+        return toUintN(8, value);
+    }
+
+    /// ToInt16(value), used by Int16Array element coercion. Never fails.
+    pub fn toI16(value: f64) i16 {
+        return toIntN(16, value);
+    }
+
+    /// ToUint16(value), used by Uint16Array element coercion. Never fails.
+    pub fn toU16(value: f64) u16 {
+        return toUintN(16, value);
+    }
+
+    /// ToUint8Clamp(value), ECMA-262 7.1.11, used by Uint8ClampedArray
+    /// element coercion. Unlike the other TypedArray conversions this is NOT
+    /// a wrap-around: out-of-range values saturate to 0/255, and non-integer
+    /// values round to nearest with ties broken towards the even neighbor
+    /// (not away from zero). Never fails.
+    pub fn toUint8Clamp(value: f64) u8 {
+        if (std.math.isNan(value) or value <= 0) return 0;
+        if (value >= 255) return 255;
+
+        const f = @floor(value);
+        if (f + 0.5 < value) return @intFromFloat(f + 1);
+        if (value < f + 0.5) return @intFromFloat(f);
+
+        const fi: u8 = @intFromFloat(f);
+        return if (fi % 2 == 1) fi + 1 else fi;
+    }
+
+    /// ToIntegerOrInfinity(value), ECMA-262 7.1.5: NaN/±0 map to 0, ±Infinity
+    /// pass through unchanged, otherwise truncate towards zero. The result of
+    /// truncating a finite f64 is always exactly representable in f64, so no
+    /// precision is lost returning it as f64 (unlike the true spec algorithm,
+    /// which allows unbounded mathematical integers — not reachable here
+    /// since the input is already an f64).
+    pub fn toIntegerOrInfinity(value: f64) f64 {
+        if (std.math.isNan(value) or value == 0) return 0;
+        if (std.math.isInf(value)) return value;
+        return @trunc(value);
+    }
+
+    /// ToLength(value), ECMA-262 7.1.20: ToIntegerOrInfinity clamped to
+    /// [0, 2^53 - 1] (Number.MAX_SAFE_INTEGER). Used pervasively for array
+    /// lengths and indices throughout the spec.
+    pub fn toLength(value: f64) f64 {
+        const len = toIntegerOrInfinity(value);
+        if (len <= 0) return 0;
+        return @min(len, @as(f64, @floatFromInt(Constants.MAX_SAFE_INTEGER)));
     }
 
     /// Convert from bytes (IEEE 754)

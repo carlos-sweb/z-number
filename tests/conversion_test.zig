@@ -199,3 +199,58 @@ test "ZNumber.fromBytes() static method" {
     const num = ZNumber.fromBytes(allocator, bytes);
     try std.testing.expectEqual(@as(f64, 42.5), num.value);
 }
+
+// ===== toI8/toU8/toI16/toU16/toUint8Clamp Tests (hand-picked; see
+// tests/typed_array_conversion_vectors_test.zig for vectors generated from
+// real V8 TypedArray coercion) =====
+
+test "toI8/toU8/toI16/toU16 wrap like the corresponding TypedArray element coercion" {
+    try std.testing.expectEqual(@as(i8, -1), ConversionMethods.toI8(255.0));
+    try std.testing.expectEqual(@as(u8, 255), ConversionMethods.toU8(-1.0));
+    try std.testing.expectEqual(@as(i16, -1), ConversionMethods.toI16(65535.0));
+    try std.testing.expectEqual(@as(u16, 65535), ConversionMethods.toU16(-1.0));
+    try std.testing.expectEqual(@as(i8, 0), ConversionMethods.toI8(Constants.NaN));
+    try std.testing.expectEqual(@as(u16, 0), ConversionMethods.toU16(Constants.POSITIVE_INFINITY));
+}
+
+test "toUint8Clamp saturates instead of wrapping, and rounds ties to even" {
+    try std.testing.expectEqual(@as(u8, 0), ConversionMethods.toUint8Clamp(-10.0));
+    try std.testing.expectEqual(@as(u8, 255), ConversionMethods.toUint8Clamp(300.0));
+    try std.testing.expectEqual(@as(u8, 0), ConversionMethods.toUint8Clamp(Constants.NaN));
+    // Ties round to the even neighbor, not away from zero: 2.5 -> 2, 3.5 -> 4.
+    try std.testing.expectEqual(@as(u8, 2), ConversionMethods.toUint8Clamp(2.5));
+    try std.testing.expectEqual(@as(u8, 4), ConversionMethods.toUint8Clamp(3.5));
+    try std.testing.expectEqual(@as(u8, 128), ConversionMethods.toUint8Clamp(127.5));
+    try std.testing.expectEqual(@as(u8, 128), ConversionMethods.toUint8Clamp(128.5));
+}
+
+// ===== toIntegerOrInfinity / toLength Tests =====
+
+test "toIntegerOrInfinity truncates towards zero and passes Infinity through" {
+    try std.testing.expectEqual(@as(f64, 0), ConversionMethods.toIntegerOrInfinity(Constants.NaN));
+    try std.testing.expectEqual(@as(f64, 0), ConversionMethods.toIntegerOrInfinity(0.0));
+    try std.testing.expectEqual(@as(f64, 0), ConversionMethods.toIntegerOrInfinity(-0.0));
+    try std.testing.expectEqual(@as(f64, 3), ConversionMethods.toIntegerOrInfinity(3.99));
+    try std.testing.expectEqual(@as(f64, -3), ConversionMethods.toIntegerOrInfinity(-3.99));
+    try std.testing.expectEqual(Constants.POSITIVE_INFINITY, ConversionMethods.toIntegerOrInfinity(Constants.POSITIVE_INFINITY));
+    try std.testing.expectEqual(Constants.NEGATIVE_INFINITY, ConversionMethods.toIntegerOrInfinity(Constants.NEGATIVE_INFINITY));
+}
+
+test "toLength clamps to [0, MAX_SAFE_INTEGER]" {
+    try std.testing.expectEqual(@as(f64, 0), ConversionMethods.toLength(-5.0));
+    try std.testing.expectEqual(@as(f64, 0), ConversionMethods.toLength(Constants.NaN));
+    try std.testing.expectEqual(@as(f64, 5), ConversionMethods.toLength(5.7));
+    try std.testing.expectEqual(@as(f64, @floatFromInt(Constants.MAX_SAFE_INTEGER)), ConversionMethods.toLength(Constants.POSITIVE_INFINITY));
+    try std.testing.expectEqual(@as(f64, @floatFromInt(Constants.MAX_SAFE_INTEGER)), ConversionMethods.toLength(@as(f64, @floatFromInt(Constants.MAX_SAFE_INTEGER)) + 10.0));
+}
+
+test "ZNumber instance wrappers for the new ToXxx operations" {
+    const allocator = std.testing.allocator;
+    try std.testing.expectEqual(@as(i8, -1), ZNumber.init(allocator, 255.0).toI8());
+    try std.testing.expectEqual(@as(u8, 255), ZNumber.init(allocator, -1.0).toU8());
+    try std.testing.expectEqual(@as(i16, -1), ZNumber.init(allocator, 65535.0).toI16());
+    try std.testing.expectEqual(@as(u16, 65535), ZNumber.init(allocator, -1.0).toU16());
+    try std.testing.expectEqual(@as(u8, 255), ZNumber.init(allocator, 300.0).toUint8Clamp());
+    try std.testing.expectEqual(@as(f64, 3), ZNumber.init(allocator, 3.99).toIntegerOrInfinity());
+    try std.testing.expectEqual(@as(f64, 5), ZNumber.init(allocator, 5.7).toLength());
+}

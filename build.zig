@@ -24,6 +24,7 @@ pub fn build(b: *std.Build) void {
         "tests/formatting_vectors_test.zig",
         "tests/parsing_vectors_test.zig",
         "tests/int_conversion_vectors_test.zig",
+        "tests/typed_array_conversion_vectors_test.zig",
     };
 
     inline for (test_files) |test_file| {

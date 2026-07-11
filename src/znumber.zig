@@ -254,6 +254,42 @@ pub const ZNumber = struct {
         return ConversionMethods.toU32(self.value);
     }
 
+    /// ToInt8(value) - Int8Array element coercion, never throws
+    pub fn toI8(self: Self) i8 {
+        return ConversionMethods.toI8(self.value);
+    }
+
+    /// ToUint8(value) - Uint8Array element coercion, never throws
+    pub fn toU8(self: Self) u8 {
+        return ConversionMethods.toU8(self.value);
+    }
+
+    /// ToInt16(value) - Int16Array element coercion, never throws
+    pub fn toI16(self: Self) i16 {
+        return ConversionMethods.toI16(self.value);
+    }
+
+    /// ToUint16(value) - Uint16Array element coercion, never throws
+    pub fn toU16(self: Self) u16 {
+        return ConversionMethods.toU16(self.value);
+    }
+
+    /// ToUint8Clamp(value) - Uint8ClampedArray element coercion (saturating,
+    /// round-half-to-even), never throws
+    pub fn toUint8Clamp(self: Self) u8 {
+        return ConversionMethods.toUint8Clamp(self.value);
+    }
+
+    /// ToIntegerOrInfinity(value), never throws
+    pub fn toIntegerOrInfinity(self: Self) f64 {
+        return ConversionMethods.toIntegerOrInfinity(self.value);
+    }
+
+    /// ToLength(value), never throws
+    pub fn toLength(self: Self) f64 {
+        return ConversionMethods.toLength(self.value);
+    }
+
     /// Convert to bytes (IEEE 754)
     pub fn toBytes(self: Self) [8]u8 {
         return ConversionMethods.toBytes(self.value);
