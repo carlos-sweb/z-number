@@ -228,6 +228,16 @@ test "modulo with zero divisor = NaN" {
     try std.testing.expect(std.math.isNan(result.value));
 }
 
+test "modulo sign follows the dividend, matching JS's % (regression: used to follow the divisor)" {
+    const allocator = std.testing.allocator;
+
+    // -5 % 3 === -2 in JS (not 1, which is what floored-modulo would give).
+    try std.testing.expectEqual(@as(f64, -2.0), ZNumber.init(allocator, -5.0).modulo(ZNumber.init(allocator, 3.0)).value);
+    // 5 % -3 === 2 in JS (not -1).
+    try std.testing.expectEqual(@as(f64, 2.0), ZNumber.init(allocator, 5.0).modulo(ZNumber.init(allocator, -3.0)).value);
+    try std.testing.expectEqual(@as(f64, -1.5), ZNumber.init(allocator, -5.5).modulo(ZNumber.init(allocator, 2.0)).value);
+}
+
 // ===== Power Edge Cases =====
 
 test "power - 0^0 = 1" {

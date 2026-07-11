@@ -154,7 +154,8 @@ pub const ZNumber = struct {
         return Self.init(self.allocator, self.value / other.value);
     }
 
-    /// Modulo operation
+    /// JS `%` (remainder): sign follows the dividend, not the divisor —
+    /// `@rem`, not `@mod` (e.g. -5 % 3 === -2 in JS, not 1).
     pub fn modulo(self: Self, other: Self) Self {
         modulo_op: {
             if (other.value == 0.0) {
@@ -164,7 +165,7 @@ pub const ZNumber = struct {
             break :modulo_op;
         }
 
-        return Self.init(self.allocator, @mod(self.value, other.value));
+        return Self.init(self.allocator, @rem(self.value, other.value));
     }
 
     /// Power operation
