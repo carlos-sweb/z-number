@@ -271,19 +271,17 @@ Tests cover:
 Z-Number uses labeled blocks extensively (10+ places) for clear control flow:
 
 ```zig
-formatter: {
-    // Validate fraction_digits (0-100)
-    if (fraction_digits) |fd| {
-        if (fd > 100) return ZNumberError.RangeError;
+pub fn isFinite(value: f64) bool {
+    finite_checker: {
+        if (std.math.isNan(value)) {
+            return false;
+        }
+        if (std.math.isInf(value)) {
+            return false;
+        }
+        break :finite_checker;
     }
-
-    // Handle special values
-    if (std.math.isNan(value)) return try allocator.dupe(u8, "NaN");
-    if (std.math.isInf(value)) {
-        return try allocator.dupe(u8, if (value > 0) "Infinity" else "-Infinity");
-    }
-
-    break :formatter;
+    return true;
 }
 ```
 
