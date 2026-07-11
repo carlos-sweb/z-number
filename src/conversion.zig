@@ -55,10 +55,15 @@ pub const ConversionMethods = struct {
     /// Generic ToUintN(value), covering ECMA-262 7.1.7 (ToUint32, bits=32)
     /// and the analogous ToUint8/ToUint16 used by TypedArrays: NaN/Infinity/±0
     /// map to 0, otherwise truncate towards zero and wrap modulo 2^bits.
-    /// Never fails.
+    /// Never fails. `bits` is restricted to the widths ECMA-262 actually
+    /// specifies this formula for; other widths have no spec backing here.
     pub fn toUintN(comptime bits: u16, value: f64) std.meta.Int(.unsigned, bits) {
-        if (!ValidationMethods.isFinite(value) or value == 0) return 0;
+        comptime std.debug.assert(bits == 8 or bits == 16 or bits == 32);
+        if (!ValidationMethods.isFinite(value)) return 0;
         const modulus: f64 = @floatFromInt(@as(u64, 1) << bits);
+        // @mod(±0, modulus) is already 0, and the unsigned/signed result
+        // types have no negative-zero representation, so ±0 needs no
+        // special case beyond the isFinite check above.
         const wrapped = @mod(@trunc(value), modulus);
         return @intFromFloat(wrapped);
     }
