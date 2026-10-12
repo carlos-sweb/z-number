@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Constants = @import("constants.zig").Constants;
 const ZNumberError = @import("errors.zig").ZNumberError;
+const ConversionMethods = @import("conversion.zig").ConversionMethods;
 const bignum = @import("bignum.zig");
 
 /// Formatting methods for converting numbers to strings.
@@ -60,9 +61,12 @@ pub const FormattingMethods = struct {
     }
 
     /// Number::toString(x, radix) — ECMA-262 6.1.6.1.20 / 21.1.3.6.
-    pub fn toString(value: f64, allocator: Allocator, radix: ?u8) ![]u8 {
-        const base = radix orelse 10;
-        if (base < 2 or base > 36) return ZNumberError.RangeError;
+    /// Radix uses ToIntegerOrInfinity; null means 10, outside 2...36 yields RangeError.
+    /// Returns an owned slice; free with allocator. Can return error.OutOfMemory.
+    pub fn toString(value: f64, allocator: Allocator, radix: ?f64) ![]u8 {
+        const r = ConversionMethods.toIntegerOrInfinity(radix orelse 10);
+        if (r < 2 or r > 36) return ZNumberError.RangeError;
+        const base: u8 = @intFromFloat(r);
 
         if (try specialValueString(allocator, value)) |s| return s;
         if (value == 0) return try allocator.dupe(u8, "0");
@@ -92,13 +96,16 @@ pub const FormattingMethods = struct {
     }
 
     /// Number::toFixed(fractionDigits) — ECMA-262 21.1.3.3.
+    /// fraction_digits uses ToIntegerOrInfinity; null means 0, outside 0...100 yields RangeError.
+    /// Returns an owned slice; free with allocator. Can return error.OutOfMemory.
     pub fn toFixed(
         value: f64,
         allocator: Allocator,
-        fraction_digits: ?usize,
+        fraction_digits: ?f64,
     ) ![]u8 {
-        const f = fraction_digits orelse 0;
-        if (f > 100) return ZNumberError.RangeError;
+        const requested = ConversionMethods.toIntegerOrInfinity(fraction_digits orelse 0);
+        if (requested < 0 or requested > 100) return ZNumberError.RangeError;
+        const f: usize = @intFromFloat(requested);
         if (try specialValueString(allocator, value)) |s| return s;
 
         const neg = value < 0;
@@ -140,15 +147,18 @@ pub const FormattingMethods = struct {
     }
 
     /// Number::toExponential(fractionDigits) — ECMA-262 21.1.3.2.
+    /// null selects shortest output; explicit digits use ToIntegerOrInfinity (0...100).
+    /// Finite values with an invalid digit count yield RangeError; NaN/Infinity bypass it.
+    /// Returns an owned slice; free with allocator. Can return error.OutOfMemory.
     pub fn toExponential(
         value: f64,
         allocator: Allocator,
-        fraction_digits: ?usize,
+        fraction_digits: ?f64,
     ) ![]u8 {
         if (try specialValueString(allocator, value)) |s| return s;
-        if (fraction_digits) |fd| {
-            if (fd > 100) return ZNumberError.RangeError;
-        }
+        const requested = ConversionMethods.toIntegerOrInfinity(fraction_digits orelse 0);
+        if (requested < 0 or requested > 100) return ZNumberError.RangeError;
+        const fd: usize = @intFromFloat(requested);
 
         const neg = value < 0;
         const x = @abs(value);
@@ -158,7 +168,7 @@ pub const FormattingMethods = struct {
         if (neg) try out.append(allocator, '-');
 
         if (x == 0) {
-            const count = (fraction_digits orelse 0) + 1;
+            const count = fd + 1;
             const digits = try allocator.alloc(u8, count);
             defer allocator.free(digits);
             @memset(digits, '0');
@@ -166,7 +176,7 @@ pub const FormattingMethods = struct {
             return out.toOwnedSlice(allocator);
         }
 
-        if (fraction_digits) |fd| {
+        if (fraction_digits != null) {
             const d = try bignum.fixedDigits(allocator, x, fd + 1);
             defer d.deinit(allocator);
             try assembleExponential(allocator, &out, d.digits, d.n - 1);
@@ -180,17 +190,21 @@ pub const FormattingMethods = struct {
     }
 
     /// Number::toPrecision(precision) — ECMA-262 21.1.3.5.
+    /// null selects decimal toString; explicit precision uses ToIntegerOrInfinity (1...100).
+    /// Finite values outside that range yield RangeError; NaN/Infinity bypass it.
+    /// Returns an owned slice; free with allocator. Can return error.OutOfMemory.
     pub fn toPrecision(
         value: f64,
         allocator: Allocator,
-        precision: ?usize,
+        precision: ?f64,
     ) ![]u8 {
         if (precision == null) {
             return toString(value, allocator, null);
         }
-        const prec = precision.?;
+        const requested = ConversionMethods.toIntegerOrInfinity(precision.?);
         if (try specialValueString(allocator, value)) |s| return s;
-        if (prec < 1 or prec > 100) return ZNumberError.RangeError;
+        if (requested < 1 or requested > 100) return ZNumberError.RangeError;
+        const prec: usize = @intFromFloat(requested);
 
         const neg = value < 0;
         const x = @abs(value);
@@ -220,8 +234,9 @@ pub const FormattingMethods = struct {
         return out.toOwnedSlice(allocator);
     }
 
-    /// Simplified toLocaleString: locale-aware formatting is implementation-defined
-    /// even in real JS engines; this delegates to the base-10 toString algorithm.
+    /// ECMA-262 fallback without ECMA-402 Intl support: decimal toString output.
+    /// The locale argument is ignored; this does not implement locale validation.
+    /// Returns an owned slice; free with allocator. Can return error.OutOfMemory.
     pub fn toLocaleString(
         value: f64,
         allocator: Allocator,

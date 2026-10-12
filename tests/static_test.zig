@@ -119,50 +119,50 @@ test "Number.parseFloat() invalid input" {
 
 test "Number.parseInt() base 10" {
     const a = std.testing.allocator;
-    try std.testing.expectEqual(@as(f64, 42), ZNumber.parseInt(a, "42", 10));
-    try std.testing.expectEqual(@as(f64, -123), ZNumber.parseInt(a, "-123", 10));
-    try std.testing.expectEqual(@as(f64, 0), ZNumber.parseInt(a, "0", 10));
+    try std.testing.expectEqual(@as(f64, 42), try ZNumber.parseInt(a, "42", 10));
+    try std.testing.expectEqual(@as(f64, -123), try ZNumber.parseInt(a, "-123", 10));
+    try std.testing.expectEqual(@as(f64, 0), try ZNumber.parseInt(a, "0", 10));
 }
 
 test "Number.parseInt() base 16" {
     const a = std.testing.allocator;
-    try std.testing.expectEqual(@as(f64, 255), ZNumber.parseInt(a, "FF", 16));
-    try std.testing.expectEqual(@as(f64, 255), ZNumber.parseInt(a, "ff", 16));
-    try std.testing.expectEqual(@as(f64, 16), ZNumber.parseInt(a, "10", 16));
+    try std.testing.expectEqual(@as(f64, 255), try ZNumber.parseInt(a, "FF", 16));
+    try std.testing.expectEqual(@as(f64, 255), try ZNumber.parseInt(a, "ff", 16));
+    try std.testing.expectEqual(@as(f64, 16), try ZNumber.parseInt(a, "10", 16));
 }
 
 test "Number.parseInt() base 2" {
     const a = std.testing.allocator;
-    try std.testing.expectEqual(@as(f64, 10), ZNumber.parseInt(a, "1010", 2));
-    try std.testing.expectEqual(@as(f64, 7), ZNumber.parseInt(a, "111", 2));
+    try std.testing.expectEqual(@as(f64, 10), try ZNumber.parseInt(a, "1010", 2));
+    try std.testing.expectEqual(@as(f64, 7), try ZNumber.parseInt(a, "111", 2));
 }
 
 test "Number.parseInt() base 8" {
     const a = std.testing.allocator;
-    try std.testing.expectEqual(@as(f64, 8), ZNumber.parseInt(a, "10", 8));
-    try std.testing.expectEqual(@as(f64, 63), ZNumber.parseInt(a, "77", 8));
+    try std.testing.expectEqual(@as(f64, 8), try ZNumber.parseInt(a, "10", 8));
+    try std.testing.expectEqual(@as(f64, 63), try ZNumber.parseInt(a, "77", 8));
 }
 
 test "Number.parseInt() auto-detect hex" {
     const a = std.testing.allocator;
-    try std.testing.expectEqual(@as(f64, 255), ZNumber.parseInt(a, "0xFF", null));
-    try std.testing.expectEqual(@as(f64, 255), ZNumber.parseInt(a, "0xff", null));
+    try std.testing.expectEqual(@as(f64, 255), try ZNumber.parseInt(a, "0xFF", null));
+    try std.testing.expectEqual(@as(f64, 255), try ZNumber.parseInt(a, "0xff", null));
 }
 
 test "Number.parseInt() does NOT auto-detect octal or binary" {
     const a = std.testing.allocator;
-    try std.testing.expectEqual(@as(f64, 0), ZNumber.parseInt(a, "0o77", null));
-    try std.testing.expectEqual(@as(f64, 0), ZNumber.parseInt(a, "0b1010", null));
+    try std.testing.expectEqual(@as(f64, 0), try ZNumber.parseInt(a, "0o77", null));
+    try std.testing.expectEqual(@as(f64, 0), try ZNumber.parseInt(a, "0b1010", null));
 }
 
 test "Number.parseInt() with sign" {
     const a = std.testing.allocator;
-    try std.testing.expectEqual(@as(f64, -42), ZNumber.parseInt(a, "-42", 10));
-    try std.testing.expectEqual(@as(f64, 42), ZNumber.parseInt(a, "+42", 10));
+    try std.testing.expectEqual(@as(f64, -42), try ZNumber.parseInt(a, "-42", 10));
+    try std.testing.expectEqual(@as(f64, 42), try ZNumber.parseInt(a, "+42", 10));
 }
 
-test "Number.parseInt() invalid radix returns NaN, never throws" {
+test "Number.parseInt() invalid radix returns NaN without allocation" {
     const a = std.testing.allocator;
-    try std.testing.expect(ZNumber.isNaN(ZNumber.parseInt(a, "42", 1)));
-    try std.testing.expect(ZNumber.isNaN(ZNumber.parseInt(a, "42", 37)));
+    try std.testing.expect(ZNumber.isNaN(try ZNumber.parseInt(a, "42", 1)));
+    try std.testing.expect(ZNumber.isNaN(try ZNumber.parseInt(a, "42", 37)));
 }

@@ -215,7 +215,12 @@ pub fn shortestDigits(allocator: Allocator, value: f64, radix: u8) !Digits {
             defer doubled.deinit();
             try doubled.shiftLeft(&R, 1);
             const tie_cmp = doubled.order(S);
-            if (tie_cmp != .lt) final_digit += 1;
+            // Choose the nearest value; on an exact tie choose an even significand.
+            // For odd radixes its parity also depends on preceding digits.
+            var parity: u8 = 0;
+            for (digits.items) |c| parity = (parity * (radix & 1) + (charToDigit(c, radix) & 1)) & 1;
+            parity = (parity * (radix & 1) + (digit_val & 1)) & 1;
+            if (tie_cmp == .gt or (tie_cmp == .eq and parity == 1)) final_digit += 1;
         }
 
         try appendDigit(allocator, &digits, final_digit, radix, &n, true);

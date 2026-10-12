@@ -107,6 +107,23 @@ test "toU32() maps NaN/Infinity to 0" {
 
 // ===== toBytes / fromBytes Tests =====
 
+test "byte conversions preserve native IEEE 754 representation" {
+    const patterns = [_]u64{
+        0x4045400000000000, // 42.5
+        0x8000000000000000, // negative zero
+        0x0000000000000001, // smallest positive subnormal
+        0x7ff0000000000000, // positive infinity
+        0x7ff8000000000042, // quiet NaN with a payload
+    };
+    for (patterns) |bits| {
+        const value: f64 = @bitCast(bits);
+        const bytes = ConversionMethods.toBytes(value);
+        try std.testing.expectEqualSlices(u8, std.mem.asBytes(&value), &bytes);
+        const restored = ConversionMethods.fromBytes(std.mem.asBytes(&value).*);
+        try std.testing.expectEqual(bits, @as(u64, @bitCast(restored)));
+    }
+}
+
 test "toBytes() and fromBytes() round-trip" {
     const value: f64 = 42.5;
     const bytes = ConversionMethods.toBytes(value);

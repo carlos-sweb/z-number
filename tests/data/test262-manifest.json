@@ -1,0 +1,52 @@
+{
+  "commit": "2e0a56762801e275a9fdf96dc49d90ba0cddcf63",
+  "node": "v26.5.0",
+  "tests": [
+    {
+      "path": "test/built-ins/Number/S9.3.1_A2.js",
+      "sha256": "5335d0334896ae7ac81eb9cdaa916d914a9dce570525bd5d9a7689a23fca8b10"
+    },
+    {
+      "path": "test/built-ins/Number/S9.3.1_A2_U180E.js",
+      "sha256": "532af221b0dce9f17df064de9e67a89e3eacfae50acfa8928737d72608654dca"
+    },
+    {
+      "path": "test/built-ins/parseFloat/S15.1.2.3_A2_T10.js",
+      "sha256": "da05a29687ceeac98fa536c7f1ddb623d91a55331ce582104605315929726aa5"
+    },
+    {
+      "path": "test/built-ins/parseFloat/S15.1.2.3_A2_T10_U180E.js",
+      "sha256": "610d34bede1ea336f63451eee64605c0aec855ce20d20ac562f03675f2bd0c66"
+    },
+    {
+      "path": "test/built-ins/parseInt/S15.1.2.2_A2_T10.js",
+      "sha256": "a1721a536bde28a9cb316fcc0b6f743e2efc4feb0ec8bbed1ef849b03315d9dd"
+    },
+    {
+      "path": "test/built-ins/parseInt/S15.1.2.2_A2_T10_U180E.js",
+      "sha256": "b8dbdee45be6d8d3b76e9fb8c67dc4261fe44341ec74064db1fa86899d7bc4d6"
+    },
+    {
+      "path": "test/built-ins/parseInt/S15.1.2.2_A3.2_T1.js",
+      "sha256": "892e02b19920c6e15d6371a8f71c267e82f740ee76de498aa81962f6c24a743b"
+    },
+    {
+      "path": "test/built-ins/Number/prototype/toExponential/tointeger-fractiondigits.js",
+      "sha256": "8284865721a7738a3a2842d21da2783f52db487204ff5ae49236feb499c918af"
+    },
+    {
+      "path": "test/built-ins/Number/prototype/toPrecision/tointeger-precision.js",
+      "sha256": "dd82497618b6f2395c645603411b9812feed6beee02944e2de0e7fd74bc01547"
+    },
+    {
+      "path": "test/built-ins/Number/prototype/toFixed/S15.7.4.5_A1.1_T01.js",
+      "sha256": "3e84e92543d1d2ddbfd70f5d2ba84963191bc7f5c09d82dbf37d530f2b2923ee"
+    }
+  ],
+  "adaptedCalls": 214,
+  "excludedCalls": 14,
+  "excluded": [
+    "Number objects, property descriptors, constructors, dynamic ToPrimitive/ToNumber, Symbol and BigInt coercions, Intl, JS evaluation order and syntax"
+  ],
+  "policy": "Adapt primitive numeric/string calls; exclude dynamic arguments and object receivers, except Number.prototype explicitly translated to its primitive numeric value +0. This is not execution of the whole Test262 suite."
+}

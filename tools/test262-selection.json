@@ -1,0 +1,19 @@
+{
+  "commit": "2e0a56762801e275a9fdf96dc49d90ba0cddcf63",
+  "paths": [
+    "test/built-ins/Number/S9.3.1_A2.js",
+    "test/built-ins/Number/S9.3.1_A2_U180E.js",
+    "test/built-ins/parseFloat/S15.1.2.3_A2_T10.js",
+    "test/built-ins/parseFloat/S15.1.2.3_A2_T10_U180E.js",
+    "test/built-ins/parseInt/S15.1.2.2_A2_T10.js",
+    "test/built-ins/parseInt/S15.1.2.2_A2_T10_U180E.js",
+    "test/built-ins/parseInt/S15.1.2.2_A3.2_T1.js",
+    "test/built-ins/Number/prototype/toExponential/tointeger-fractiondigits.js",
+    "test/built-ins/Number/prototype/toPrecision/tointeger-precision.js",
+    "test/built-ins/Number/prototype/toFixed/S15.7.4.5_A1.1_T01.js"
+  ],
+  "excluded": [
+    "Number objects, property descriptors, constructors, dynamic ToPrimitive/ToNumber, Symbol and BigInt coercions, Intl, JS evaluation order and syntax"
+  ],
+  "policy": "Adapt primitive numeric/string calls; exclude dynamic arguments and object receivers, except Number.prototype explicitly translated to its primitive numeric value +0. This is not execution of the whole Test262 suite."
+}

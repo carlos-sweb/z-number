@@ -1,41 +1,44 @@
 # Z-Number
 
-ECMAScript-compatible Number implementation in Zig 0.16
+ECMAScript-compatible Number implementation in Zig 0.17
 
-[![Zig 0.16](https://img.shields.io/badge/Zig-0.16-orange.svg)](https://ziglang.org/)
+[![Zig 0.17](https://img.shields.io/badge/Zig-0.17-orange.svg)](https://ziglang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> A production-ready library implementing JavaScript's Number object in Zig, designed as a core component for JavaScript engines (like Bun/QuickJS).
+> ECMAScript numeric operations and string conversion for Zig, designed for embedding in JavaScript engines.
 
 [Español](README.es.md) | English
 
 ## Features
 
-- **Spec-exact formatting**: `toString`/`toFixed`/`toExponential`/`toPrecision` are implemented with arbitrary-precision (bignum) digit generation — not `printf`-style formatting — so rounding and the shortest round-tripping representation match a real JS engine exactly, including radixes 2-36 for `toString`.
+- **Spec-exact formatting**: `toString`/`toFixed`/`toExponential`/`toPrecision` are implemented with arbitrary-precision (bignum) digit generation — not `printf`-style formatting — with specified rounding and shortest round-trip representations, including radixes 2-36 for `toString`.
 - **Spec-exact parsing**: `Number.parseInt`/`Number.parseFloat` consume the *longest valid prefix* and ignore trailing garbage, exactly like JS, instead of requiring the whole string to be valid.
 - **Spec-exact `ToInt32`/`ToUint32`**: `toI32`/`toU32` never fail — they wrap modulo 2^32 like JS's `| 0` / `>>> 0`, instead of throwing on overflow.
 - **IEEE 754 Compliant**: Proper handling of NaN, Infinity, -Infinity, and special values
-- **Modern Zig**: Written for Zig 0.16 with labeled blocks and best practices
+- **Modern Zig**: Written for Zig 0.17
 - **Comprehensive Testing**: 200+ tests, including thousands of vectors generated from and cross-checked against real Node.js/V8 output
-- **Production Ready**: Designed for use in JavaScript engines
+- **Embedding APIs**: Typed numeric operations for JavaScript engine integration
 
 ### Scope
 
-This library implements ECMA-262 §21.1 Number constants, static methods
-(`isFinite`/`isInteger`/`isNaN`/`isSafeInteger`/`parseInt`/`parseFloat`), and
-`Number.prototype` string/formatting methods, operating on Zig's native
-`f64`/`i64`/strings. It does **not** implement the `Number` constructor's
-`ToNumber` coercion from other JS value types (booleans, `null`, `undefined`,
-objects) — there is no dynamic "JS value" type here to coerce from, only
-numbers, integers and strings.
+The target is **ECMA-262 edition 17 (ECMAScript 2026)** for typed Number
+operations: constants, predicates, arithmetic, comparisons, bitwise operations,
+string parsing, formatting and numeric conversions. `stringToNumber` and
+`fromString` implement complete `Number(string)` conversion; `parseFloat` and
+`parseInt` consume a valid prefix. `parseInt` avoids heap allocation for magnitudes fitting `u64`; larger integers use exact bignum conversion and propagate host OutOfMemory.
 
-For `toString(radix)` with `radix != 10`, ECMA-262 does not mandate an exact
-digit-generation algorithm (only decimal `toString` is normative there). This
-library always produces a *correct, exactly round-tripping* representation,
-computed as the true shortest digit sequence — for fractional values or
-integers beyond 2^53 this can occasionally differ by a digit or two from a
-specific engine's own (non-normative, and not always minimal) output, though
-both remain valid representations of the same value.
+Inputs are Zig `f64`/`i64` and UTF-8 strings. Optional numeric arguments use
+`?f64`; `null` means omission, not JavaScript null. There is no dynamic JS value
+type, object coercion, Number wrapper object or Intl implementation.
+`toLocaleString` returns decimal output and ignores its locale argument.
+
+All radixes 2–36 produce shortest representations verified against exact
+binary64 rounding intervals. The selected last digit can differ from an engine
+where the standard allows a choice. General finite exponentiation is
+implementation-approximated; bit-for-bit equality with every JS engine is not promised.
+
+See the [conformance matrix](docs/CONFORMANCE.md) for coverage and exclusions,
+and the [breaking API migration guide](docs/MIGRATION.md) for updated calls and memory ownership.
 
 ## Quick Start
 
@@ -45,8 +48,8 @@ const ZNumber = @import("znumber").ZNumber;
 const Constants = @import("znumber").Constants;
 
 pub fn main() !void {
-    var gpa:std.heap.DebugAllocator(.{}) = .init;
-    defer _ = gpa.deinit();	
+    var gpa: std.heap.SafeAllocator = .init(std.heap.page_allocator, .{});
+    defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     // Create numbers
@@ -71,7 +74,7 @@ pub fn main() !void {
 ## Installation
 
 ```sh
-zig fetch --save git+https://github.com/carlos-sweb/z-number.git
+zig fetch --save=znumber https://github.com/carlos-sweb/z-number/archive/refs/tags/v0.1.0.tar.gz
 ```
 
 Add Z-Number to your `build.zig`:
@@ -84,6 +87,12 @@ const znumber_dep = b.dependency("znumber", .{
 
 exe.root_module.addImport("znumber", znumber_dep.module("znumber"));
 ```
+
+## Generated API documentation
+
+[Browse the Zig API reference](https://carlos-sweb.github.io/z-number/). Generate the same documentation locally with `zig build docs`, then serve it with `python3 -m http.server 8000 --directory zig-out/docs`. See [documentation instructions](docs/README.md).
+
+All formatting results are owned slices: free them with the same allocator. `ZNumber.deinit()` does not release those strings. Optional numeric `null` means omission.
 
 ## API Reference
 
@@ -151,59 +160,63 @@ ZNumber.parseFloat("  42  ")      // 42.0
 ZNumber.parseFloat("Infinity")    // Infinity
 ```
 
-#### Number.parseInt(allocator: Allocator, str: []const u8, radix: ?u8) f64
+#### Number.parseInt(allocator: Allocator, str: []const u8, radix: ?f64) !f64
 
 Parses a string to a number with optional radix. Like JS, it consumes the
 longest valid digit run and ignores the rest, and returns `NaN` — never an
 error — on invalid input:
 
 ```zig
-ZNumber.parseInt(allocator, "42", 10)      // 42
-ZNumber.parseInt(allocator, "0xFF", null)  // 255 (auto-detect hex)
-ZNumber.parseInt(allocator, "1010", 2)     // 10
-ZNumber.parseInt(allocator, "42px", 10)    // 42 (stops at the first invalid digit)
-ZNumber.parseInt(allocator, "abc", 10)     // NaN
+try ZNumber.parseInt(allocator, "42", 10)      // 42
+try ZNumber.parseInt(allocator, "0xFF", null)  // 255 (auto-detect hex)
+try ZNumber.parseInt(allocator, "1010", 2)     // 10
+try ZNumber.parseInt(allocator, "42px", 10)    // 42 (stops at the first invalid digit)
+try ZNumber.parseInt(allocator, "abc", 10)     // NaN
 ```
 
 ### Instance Methods
 
-#### toFixed(fraction_digits: ?usize) ![]u8
+#### toFixed(fraction_digits: ?f64) ![]u8
 
 Formats number with fixed decimal places:
 
 ```zig
 const num = ZNumber.init(allocator, 123.456);
 const result = try num.toFixed(2);
+defer allocator.free(result);
 // result: "123.46"
 ```
 
-#### toExponential(fraction_digits: ?usize) ![]u8
+#### toExponential(fraction_digits: ?f64) ![]u8
 
 Formats number in exponential notation:
 
 ```zig
 const num = ZNumber.init(allocator, 123.456);
 const result = try num.toExponential(2);
+defer allocator.free(result);
 // result: "1.23e+2"
 ```
 
-#### toPrecision(precision: ?usize) ![]u8
+#### toPrecision(precision: ?f64) ![]u8
 
 Formats number with specified precision:
 
 ```zig
 const num = ZNumber.init(allocator, 123.456);
 const result = try num.toPrecision(5);
+defer allocator.free(result);
 // result: "123.46"
 ```
 
-#### toString(radix: ?u8) ![]u8
+#### toString(radix: ?f64) ![]u8
 
 Converts to string with optional radix:
 
 ```zig
 const num = ZNumber.init(allocator, 255.0);
 const hex = try num.toString(16);
+defer allocator.free(hex);
 // hex: "ff"
 ```
 
@@ -264,8 +277,11 @@ const neg_zero: f64 = -0.0;  // Distinct from +0.0 in bit representation
 
 Run the comprehensive test suite:
 
+The suite also includes 10,000 deterministic binary64 cases, 3,087 long-string parsing cases, 214 adapted Test262 calls, exact radix interval/minimality checks and allocation-failure tests. Fixtures are committed; tests require no Node or network. Regeneration commands and source versions are in [CONFORMANCE.md](docs/CONFORMANCE.md).
+
 ```bash
 zig build test --summary all
+zig build test -Doptimize=ReleaseSafe --summary all
 ```
 
 Tests cover:
@@ -309,11 +325,7 @@ pub const ZNumberError = error{
 };
 ```
 
-Note that the ECMA-262 operations themselves (`toI32`/`toU32`/`parseInt`/`parseFloat`)
-never return these errors — they wrap or return `NaN` like JS. `RangeError` is
-only used for out-of-spec-range arguments (e.g. `toFixed(101)`), and
-`Overflow`/`Underflow`/`InvalidNumber` are only used by the non-spec 64-bit
-convenience helpers (`toInt`/`toUint`).
+`toI32`, `toU32` and `parseFloat` never return errors; integer coercions wrap and invalid parsing returns NaN. `parseInt` and `stringToNumber` propagate host `OutOfMemory` when temporary bignum storage cannot be allocated. Formatting can return `OutOfMemory` or `RangeError` (for example, `toFixed(101)`); `toIndex` can also return `RangeError`. Checked Zig conversions use `InvalidNumber`, `Overflow` and `Underflow` as documented; `toF32` can return `Overflow`.
 
 ## Project Structure
 
@@ -380,9 +392,9 @@ defer allocator.free(exp);
 const float_val = ZNumber.parseFloat("3.14159");
 
 // Parse integers with different radices
-const decimal = ZNumber.parseInt(allocator, "42", 10);
-const hex = ZNumber.parseInt(allocator, "0xFF", null);  // auto-detect
-const binary = ZNumber.parseInt(allocator, "1010", 2);
+const decimal = try ZNumber.parseInt(allocator, "42", 10);
+const hex = try ZNumber.parseInt(allocator, "0xFF", null);  // auto-detect
+const binary = try ZNumber.parseInt(allocator, "1010", 2);
 ```
 
 ### Special Values
@@ -412,7 +424,7 @@ MIT License - see LICENSE file for details
 
 ## Acknowledgments
 
-Built with Zig 0.16 for maximum performance and safety. Designed to be a core component of modern JavaScript engines.
+Built with Zig 0.17 for maximum performance and safety. Designed to be a core component of modern JavaScript engines.
 
 ---
 

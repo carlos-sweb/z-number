@@ -7,7 +7,7 @@ const ValidationMethods = @import("validation.zig").ValidationMethods;
 /// These methods handle safe conversions with proper error checking
 pub const ConversionMethods = struct {
     /// Convert to integer (truncate)
-    /// Labeled block example 11
+    /// InvalidNumber for NaN/Infinity; Overflow at >=2^63; Underflow below -2^63.
     pub fn toInt(value: f64) !i64 {
         int_converter: {
             // Check if value is finite
@@ -16,7 +16,7 @@ pub const ConversionMethods = struct {
             }
 
             // Check for overflow
-            if (value > @as(f64, @floatFromInt(std.math.maxInt(i64)))) {
+            if (value >= 0x1p63) {
                 return ZNumberError.Overflow;
             }
 
@@ -31,7 +31,8 @@ pub const ConversionMethods = struct {
         return @intFromFloat(@trunc(value));
     }
 
-    /// Convert to unsigned integer
+    /// Truncate to u64: InvalidNumber for NaN/Infinity, Underflow for negative
+    /// inputs, Overflow at >=2^64.
     pub fn toUint(value: f64) !u64 {
         uint_converter: {
             if (!ValidationMethods.isFinite(value)) {
@@ -42,7 +43,7 @@ pub const ConversionMethods = struct {
                 return ZNumberError.Underflow;
             }
 
-            if (value > @as(f64, @floatFromInt(std.math.maxInt(u64)))) {
+            if (value >= 0x1p64) {
                 return ZNumberError.Overflow;
             }
 
@@ -57,7 +58,7 @@ pub const ConversionMethods = struct {
     /// map to 0, otherwise truncate towards zero and wrap modulo 2^bits.
     /// Never fails. `bits` is restricted to the widths ECMA-262 actually
     /// specifies this formula for; other widths have no spec backing here.
-    pub fn toUintN(comptime bits: u16, value: f64) std.meta.Int(.unsigned, bits) {
+    pub fn toUintN(comptime bits: u16, value: f64) @Int(.unsigned, bits) {
         comptime std.debug.assert(bits == 8 or bits == 16 or bits == 32);
         if (!ValidationMethods.isFinite(value)) return 0;
         const modulus: f64 = @floatFromInt(@as(u64, 1) << bits);
@@ -72,7 +73,7 @@ pub const ConversionMethods = struct {
     /// the analogous ToInt8/ToInt16: same wrap-around as ToUintN, with the
     /// top half of the range reinterpreted as negative (two's complement).
     /// Never fails.
-    pub fn toIntN(comptime bits: u16, value: f64) std.meta.Int(.signed, bits) {
+    pub fn toIntN(comptime bits: u16, value: f64) @Int(.signed, bits) {
         return @bitCast(toUintN(bits, value));
     }
 
@@ -144,17 +145,28 @@ pub const ConversionMethods = struct {
         return @min(len, @as(f64, @floatFromInt(Constants.MAX_SAFE_INTEGER)));
     }
 
-    /// Convert from bytes (IEEE 754)
+    /// ECMA-262 ToIndex. null represents an omitted argument, not JS null.
+    /// Returns RangeError when the truncated result is outside 0...2^53-1.
+    pub fn toIndex(value: ?f64) !u64 {
+        const integer = toIntegerOrInfinity(value orelse 0);
+        if (integer < 0 or integer > @as(f64, @floatFromInt(Constants.MAX_SAFE_INTEGER))) {
+            return ZNumberError.RangeError;
+        }
+        return @intFromFloat(integer);
+    }
+
+    /// Convert from bytes (IEEE 754, native byte order)
     pub fn fromBytes(bytes: [8]u8) f64 {
-        return @bitCast(bytes);
+        return @as(*align(1) const f64, @ptrCast(&bytes)).*;
     }
 
-    /// Convert to bytes (IEEE 754)
+    /// Convert to bytes (IEEE 754, native byte order)
     pub fn toBytes(value: f64) [8]u8 {
-        return @bitCast(value);
+        return @as(*const [8]u8, @ptrCast(&value)).*;
     }
 
-    /// Convert to f32 (may lose precision)
+    /// Checked Zig f32 conversion; finite values above floatMax return Overflow.
+    /// This is an extension, not ECMAScript Float32Array coercion.
     pub fn toF32(value: f64) !f32 {
         f32_converter: {
             if (std.math.isNan(value)) {

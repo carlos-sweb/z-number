@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "generator": "tools/generate-conformance.mjs",
+  "node": "v26.5.0",
+  "v8": "14.6.202.34-node.24",
+  "seed": "0x7a6e756d62657217",
+  "algorithm": "SplitMix64",
+  "patterns": 10000,
+  "numericResults": 22,
+  "booleanResults": 9,
+  "formatResults": 5,
+  "standard": "ECMA-262 edition 17 (2026)",
+  "policy": "NaN by category; other numeric results by binary64 bits. V8 strings are a differential oracle, including the recommended nearest-even shortest representation.",
+  "parsingCases": 3087,
+  "integerOracle": "Number(BigInt exact digit accumulation), nearest-even; stronger than implementation-permitted parseInt approximations"
+}

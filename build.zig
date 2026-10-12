@@ -7,12 +7,40 @@ pub fn build(b: *std.Build) void {
     // Create znumber module
     const znumber_module = b.addModule("znumber", .{
         .root_source_file = b.path("src/znumber.zig"),
+        .target = target,
+        .optimize = optimize,
     });
+
+    const docs_object = b.addObject(.{ .name = "znumber", .root_module = znumber_module });
+    const docs_install = b.addInstallDirectory(.{
+        .source_dir = docs_object.getEmittedDocs(),
+        .install_dir = .prefix,
+        .install_subdir = "docs",
+    });
+    b.step("docs", "Generate Zig API documentation in zig-out/docs").dependOn(&docs_install.step);
+
+    const example = b.addExecutable(.{
+        .name = "znumber-example",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    example.root_module.addImport("znumber", znumber_module);
+    b.step("examples", "Compile the quick-start example").dependOn(&example.step);
+    b.step("run", "Run the quick-start example").dependOn(&b.addRunArtifact(example).step);
 
     // Test setup
     const test_step = b.step("test", "Run all tests");
 
     const test_files = [_][]const u8{
+        "tests/parity_test.zig",
+        "tests/parsing_optimization_test.zig",
+        "tests/radix_test.zig",
+        "tests/test262_test.zig",
+        "tests/conformance_test.zig",
+        "tests/memory_test.zig",
         "tests/constants_test.zig",
         "tests/static_test.zig",
         "tests/formatting_test.zig",

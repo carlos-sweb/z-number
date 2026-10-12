@@ -2,16 +2,21 @@
     .name = .znumber,
     .version = "0.1.0",
     .fingerprint = 0xf226eeecf6761764,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
 
-    .description = "ECMAScript-compatible Number implementation in Zig — a production-ready library for JavaScript engines",
+    .description = "ECMAScript-compatible Number implementation in Zig — a typed numeric library for JavaScript engines",
 
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "src",
+        "tests",
+        "tools",
+        "docs",
         "README.md",
         "README.es.md",
+        "LICENSE",
+        "mise.toml",
     },
 
     .dependencies = .{},
